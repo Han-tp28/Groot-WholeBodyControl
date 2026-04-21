@@ -302,7 +302,7 @@ def init_humanoid_fk(robot: str = "g1"):
     """
     import omegaconf
 
-    mjcf_file = "g1_29dof_rev_1_0.xml" if robot == "g1" else "vr_h3_1.xml"
+    mjcf_file = "g1_29dof_rev_1_0.xml" if robot == "g1" else "vr_h3_1_rl.xml"
 
     motion_cfg = omegaconf.OmegaConf.create(
         {
