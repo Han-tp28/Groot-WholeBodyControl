@@ -39,7 +39,7 @@ manager_env:
       weight: -2.5e-6
     anti_shake_ang_vel:
       params:
-        body_names: ["left_wrist_pitch_link", "right_wrist_pitch_link"]
+        body_names: ["left_wrist_pitch_link", "right_wrist_pitch_link", "head_yaw_link"]
     undesired_contacts:
       params:
         sensor_cfg:
