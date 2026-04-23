@@ -27,15 +27,6 @@ https://huggingface.co/datasets/bones-studio/seed
 To convert G1 CSV to H3_1 CSV:
 https://bitbucket.org/vinrobotics/gmr/src/main/
 
-To convert BVH SOMA data to g1 CSV:
-https://github.com/NVIDIA/soma-retargeter
-
-and then use GMR to convert g1 CSV to H3_1 CSV:
-
-
-
-
-
 
 
 # Download Bones-SEED G1 CSVs from bones-studio.ai/seed, then convert and filter
@@ -45,17 +36,27 @@ python gear_sonic/data_process/convert_soma_csv_to_motion_lib.py \
 python gear_sonic/data_process/filter_and_copy_bones_data.py \
     --source data/motion_lib_bones_seed/robot --dest data/motion_lib_bones_seed/robot_filtered
 
-# Finetune from released checkpoint (64+ GPUs recommended)
-accelerate launch --num_processes=8 gear_sonic/train_agent_trl.py \
-    +exp=manager/universal_token/all_modes/sonic_release \
-    +checkpoint=sonic_release/last.pt \
+# Finetune from released checkpoint (64+ GPUs recommended) Train multi GPU:
+accelerate launch \
+    --multi_gpu --num_processes=2 \
+    gear_sonic/train_agent_trl.py \
+    +exp=manager/universal_token/all_modes/sonic_vr_h3_1 \
     num_envs=4096 headless=True \
-    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/motion_lib_bones_seed/robot_filtered \
+    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/my_robot_motions/robot_filtered \
     ++manager_env.commands.motion.motion_lib_cfg.smpl_motion_file=data/smpl_filtered
 ```
 
 
 
+
+Train single GPU:
+```bash
+python gear_sonic/train_agent_trl.py \
+    +exp=manager/universal_token/all_modes/sonic_vr_h3_1 \
+    num_envs=4096 headless=True \
+    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/my_robot_motions/robot_filtered \
+    ++manager_env.commands.motion.motion_lib_cfg.smpl_motion_file=data/smpl_filtered
+```
 
 ## What's Included
 
