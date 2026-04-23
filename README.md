@@ -21,42 +21,78 @@ python download_from_hf.py --training
 
 
 ### Prepare Dataset
-Download data source form  :
+
+#### 1. Download Data
+Download the Bones-SEED dataset (G1 CSVs) from:
 https://huggingface.co/datasets/bones-studio/seed
 
-To convert G1 CSV to H3_1 CSV:
+#### 2. Convert G1 CSV to VR_H3_1 CSV
+Use the `gmr` repository to retarget G1 motions to VR_H3_1 format:
 https://bitbucket.org/vinrobotics/gmr/src/main/
 
+```bash
+cd /path/to/gmr
+conda activate gmr
+python scripts/convert_g1_csv_to_vr_h3_1.py \
+  --src /path/to/bones_seed/g1/csv \
+  --tgt /path/to/bones_seed/vr_h3_1/csv
+```
 
+#### 3. Process CSVs into Motion Library
+Convert the retargeted CSVs into the `.pkl` format required by SONIC:
 
-# Download Bones-SEED G1 CSVs from bones-studio.ai/seed, then convert and filter
+```bash
+cd /path/to/GR00T-WholeBodyControl
+# Convert CSVs to PKL (specify --robot vr_h3_1)
 python gear_sonic/data_process/convert_soma_csv_to_motion_lib.py \
-    --input /path/to/bones_seed/g1/csv/ \
-    --output data/motion_lib_bones_seed/robot --fps 30 --fps_source 120 --individual --num_workers 16
-python gear_sonic/data_process/filter_and_copy_bones_data.py \
-    --source data/motion_lib_bones_seed/robot --dest data/motion_lib_bones_seed/robot_filtered
+    --input /path/to/bones_seed/vr_h3_1/csv \
+    --output data/motion_lib_bones_seed/vr_h3_1 \
+    --robot vr_h3_1 \
+    --fps 30 --fps_source 120 --individual --num_workers 16
 
-# Finetune from released checkpoint (64+ GPUs recommended) Train multi GPU:
+# Filter and finalize the dataset
+python gear_sonic/data_process/filter_and_copy_bones_data.py \
+    --source data/motion_lib_bones_seed/vr_h3_1 \
+    --dest data/motion_lib_bones_seed/vr_h3_1_filtered
+```
+
+
+## Data dỉrection should look like this 
+
+<repo_root>/
+├── data/
+│   ├── my_robot_motions/
+│   │   └── robot_filtered/     
+│   └── smpl_filtered/     
+└── sonic_release/               
+
+### Training VR_H3_1
+
+Ensure you have downloaded the SMPL reference data:
+```bash
+python download_from_hf.py --training
+```
+
+#### Train Multi-GPU (Accelerate)
+```bash
 accelerate launch \
     --multi_gpu --num_processes=2 \
     gear_sonic/train_agent_trl.py \
     +exp=manager/universal_token/all_modes/sonic_vr_h3_1 \
     num_envs=4096 headless=True \
-    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/my_robot_motions/robot_filtered \
+    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/motion_lib_bones_seed/vr_h3_1_filtered \
     ++manager_env.commands.motion.motion_lib_cfg.smpl_motion_file=data/smpl_filtered
 ```
 
-
-
-
-Train single GPU:
+#### Train Single GPU
 ```bash
 python gear_sonic/train_agent_trl.py \
     +exp=manager/universal_token/all_modes/sonic_vr_h3_1 \
     num_envs=4096 headless=True \
-    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/my_robot_motions/robot_filtered \
+    ++manager_env.commands.motion.motion_lib_cfg.motion_file=data/motion_lib_bones_seed/vr_h3_1_filtered \
     ++manager_env.commands.motion.motion_lib_cfg.smpl_motion_file=data/smpl_filtered
 ```
+
 
 ## What's Included
 
