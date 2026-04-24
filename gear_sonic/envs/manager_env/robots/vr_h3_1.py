@@ -228,4 +228,4 @@ for a in VR_H3_1_CFG.actuators.values():
         s = dict.fromkeys(names, s)
     for n in names:
         if n in e and n in s and s[n]:
-            VR_H3_1_ACTION_SCALE[n] = 3.0 * e[n] / s[n]
+            VR_H3_1_ACTION_SCALE[n] = 0.25 * e[n] / s[n]
