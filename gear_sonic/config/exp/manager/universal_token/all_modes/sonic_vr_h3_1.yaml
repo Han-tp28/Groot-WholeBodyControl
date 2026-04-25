@@ -48,7 +48,7 @@ manager_env:
     tokenizer:
       joint_pos_multi_future_wrist_for_smpl:
         params:
-          joints_idx: [18, 19, 20, 25, 26, 27]
+          joints_idx: [22, 23, 24, 25, 26, 27]  # left/right wrist_yaw, wrist_roll, wrist_pitch
   config:
     robot:
       type: vr_h3_1
