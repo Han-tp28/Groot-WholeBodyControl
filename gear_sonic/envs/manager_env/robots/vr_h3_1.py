@@ -27,7 +27,10 @@ VR_H3_1_ISAACLAB_JOINTS = ['pelvis', 'left_hip_pitch_link', 'right_hip_pitch_lin
 # Mapping between IsaacLab order and MuJoCo order
 VR_H3_1_ISAACLAB_TO_MUJOCO_DOF = [0, 3, 6, 10, 14, 18, 1, 4, 7, 11, 15, 19, 2, 5, 8, 12, 16, 20, 22, 24, 26, 9, 13, 17, 21, 23, 25, 27]
 VR_H3_1_MUJOCO_TO_ISAACLAB_DOF = [0, 6, 12, 1, 7, 13, 2, 8, 14, 21, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27]
-VR_H3_1_ISAACLAB_TO_MUJOCO_BODY = [0, 1, 4, 7, 11, 15, 19, 2, 5, 8, 12, 16, 20, 3, 6, 9, 13, 17, 21, 23, 25, 27, 10, 14, 18, 22, 24, 26, 28, 6, 6]
+# H3 tuning 2026-05-05: keep the mapping on the 29-body actuated set used by
+# current H3 motion PKLs. The previous list had two duplicate fixed-head entries
+# at the end ([6, 6]), which can scramble full-body converter/eval paths.
+VR_H3_1_ISAACLAB_TO_MUJOCO_BODY = [0, 1, 4, 7, 11, 15, 19, 2, 5, 8, 12, 16, 20, 3, 6, 9, 13, 17, 21, 23, 25, 27, 10, 14, 18, 22, 24, 26, 28]
 VR_H3_1_MUJOCO_TO_ISAACLAB_BODY = [0, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 6, 12, 18, 25, 19, 26, 20, 27, 21, 28]
 
 VR_H3_1_ISAACLAB_TO_MUJOCO_MAPPING = {
@@ -116,7 +119,14 @@ VR_H3_1_CFG = ArticulationCfg(
                 ".*_hip_pitch_joint": 369.0,
                 ".*_knee_pitch_joint": 369.0,
             },
-            velocity_limit_sim=3.141,
+            # H3 tuning 2026-05-05: train tracking needs more joint speed than
+            # the original conservative hardware-like limits.
+            velocity_limit_sim={
+                ".*_hip_yaw_joint": 20.0,
+                ".*_hip_roll_joint": 20.0,
+                ".*_hip_pitch_joint": 20.0,
+                ".*_knee_pitch_joint": 20.0,
+            },
             stiffness={
                 ".*_hip_pitch_joint": 913.0,
                 ".*_hip_roll_joint": 906.0,
@@ -139,7 +149,9 @@ VR_H3_1_CFG = ArticulationCfg(
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             effort_limit_sim=140.0,
-            velocity_limit_sim=3.141,
+            # H3 tuning 2026-05-05: match lower-body tracking authority before
+            # re-tightening foot/ankle terminations.
+            velocity_limit_sim=20.0,
             stiffness={
                 ".*_ankle_pitch_joint": 658.0,
                 ".*_ankle_roll_joint": 646.0,
@@ -178,13 +190,15 @@ VR_H3_1_CFG = ArticulationCfg(
                 ".*_wrist_pitch_joint": 11.0,
             },
             velocity_limit_sim={
-                ".*_shoulder_pitch_joint": 3.141,
-                ".*_shoulder_roll_joint": 2.356,
-                ".*_shoulder_yaw_joint": 2.967,
-                ".*_elbow_pitch_joint": 1.571,
-                ".*_wrist_yaw_joint": 1.571,
-                ".*_wrist_roll_joint": 1.571,
-                ".*_wrist_pitch_joint": 1.571,
+                # H3 tuning 2026-05-05: original wrist/elbow caps were too low
+                # for retargeted VR/SMPL tracking during early training.
+                ".*_shoulder_pitch_joint": 20.0,
+                ".*_shoulder_roll_joint": 20.0,
+                ".*_shoulder_yaw_joint": 20.0,
+                ".*_elbow_pitch_joint": 20.0,
+                ".*_wrist_yaw_joint": 12.0,
+                ".*_wrist_roll_joint": 12.0,
+                ".*_wrist_pitch_joint": 12.0,
             },
             stiffness={
                 ".*_shoulder_pitch_joint": 103.0,
@@ -217,15 +231,23 @@ VR_H3_1_CFG = ArticulationCfg(
     },
 )
 
-VR_H3_1_ACTION_SCALE = {}
-for a in VR_H3_1_CFG.actuators.values():
-    e = a.effort_limit_sim
-    s = a.stiffness
-    names = a.joint_names_expr
-    if not isinstance(e, dict):
-        e = dict.fromkeys(names, e)
-    if not isinstance(s, dict):
-        s = dict.fromkeys(names, s)
-    for n in names:
-        if n in e and n in s and s[n]:
-            VR_H3_1_ACTION_SCALE[n] = 0.25 * e[n] / s[n]
+# H3 tuning 2026-05-05: explicit scales for learning authority. The old automatic
+# 0.25 * effort / stiffness rule made several H3 joints much smaller than G1
+# (ankle ~0.053, wrist_pitch ~0.013), causing foot/EE tracking resets.
+VR_H3_1_ACTION_SCALE = {
+    ".*_hip_yaw_joint": 0.25,
+    ".*_hip_roll_joint": 0.20,
+    ".*_hip_pitch_joint": 0.25,
+    ".*_knee_pitch_joint": 0.25,
+    ".*_ankle_pitch_joint": 0.20,
+    ".*_ankle_roll_joint": 0.15,
+    "waist_roll_joint": 0.20,
+    "waist_yaw_joint": 0.25,
+    ".*_shoulder_pitch_joint": 0.30,
+    ".*_shoulder_roll_joint": 0.25,
+    ".*_shoulder_yaw_joint": 0.25,
+    ".*_elbow_pitch_joint": 0.25,
+    ".*_wrist_yaw_joint": 0.20,
+    ".*_wrist_roll_joint": 0.15,
+    ".*_wrist_pitch_joint": 0.15,
+}

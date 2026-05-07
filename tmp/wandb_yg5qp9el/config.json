@@ -1,0 +1,1127 @@
+{
+  "env": "???",
+  "algo": {
+    "trl": {
+      "lam": "${algo.config.lam}",
+      "gamma": "${algo.config.gamma}",
+      "vf_coef": "${algo.config.value_loss_coef}",
+      "report_to": "none",
+      "output_dir": "logs_rl/TRL_VR_H3_1_Track/manager/universal_token/all_modes/sonic_vr_h3_1_test-20260506_092721",
+      "dataset_name": "dummy",
+      "disable_tqdm": true,
+      "learning_rate": "${algo.config.actor_learning_rate}",
+      "max_grad_norm": "${algo.config.max_grad_norm}",
+      "save_strategy": "no",
+      "num_ppo_epochs": "${algo.config.num_learning_epochs}",
+      "total_episodes": null,
+      "num_mini_batches": "${algo.config.num_mini_batches}",
+      "lr_scheduler_type": "constant",
+      "num_total_batches": "${algo.config.num_learning_iterations}",
+      "gradient_accumulation_steps": 1,
+      "per_device_train_batch_size": null
+    },
+    "config": {
+      "lam": 0.95,
+      "actor": {
+        "_target_": "gear_sonic.trl.modules.actor_critic_modules.Actor",
+        "backbone": {
+          "_target_": "gear_sonic.trl.modules.universal_token_modules.UniversalTokenModule",
+          "decoders": {
+            "g1_dyn": {
+              "inputs": [
+                "token_flattened",
+                "proprioception"
+              ],
+              "params": {
+                "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+                "input_dim": null,
+                "output_dim": null,
+                "module_config_dict": {
+                  "layer_config": {
+                    "type": "MLP",
+                    "activation": "SiLU",
+                    "hidden_dims": [
+                      2048,
+                      2048,
+                      1024,
+                      1024,
+                      512,
+                      512
+                    ]
+                  }
+                },
+                "num_input_temporal_dims": null,
+                "num_output_temporal_dims": null
+              },
+              "outputs": [
+                "action"
+              ],
+              "has_temporal_dim": false
+            },
+            "g1_kin": {
+              "inputs": [
+                "token"
+              ],
+              "params": {
+                "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+                "input_dim": null,
+                "output_dim": null,
+                "module_config_dict": {
+                  "layer_config": {
+                    "type": "MLP",
+                    "activation": "SiLU",
+                    "hidden_dims": [
+                      2048,
+                      1024,
+                      512,
+                      512
+                    ]
+                  }
+                },
+                "num_input_temporal_dims": "${algo.config.actor.backbone.max_num_tokens}",
+                "num_output_temporal_dims": "${manager_env.commands.motion.num_future_frames}"
+              },
+              "outputs": [
+                "command_multi_future_nonflat",
+                "motion_anchor_ori_b_mf_nonflat"
+              ],
+              "has_temporal_dim": true
+            }
+          },
+          "encoders": {
+            "g1": {
+              "inputs": [
+                "command_multi_future_nonflat",
+                "motion_anchor_ori_b_mf_nonflat"
+              ],
+              "params": {
+                "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+                "input_dim": null,
+                "output_dim": null,
+                "module_config_dict": {
+                  "layer_config": {
+                    "type": "MLP",
+                    "activation": "SiLU",
+                    "hidden_dims": [
+                      2048,
+                      1024,
+                      512,
+                      512
+                    ]
+                  }
+                },
+                "num_input_temporal_dims": "${manager_env.commands.motion.num_future_frames}",
+                "num_output_temporal_dims": "${algo.config.actor.backbone.max_num_tokens}"
+              }
+            },
+            "smpl": {
+              "inputs": [
+                "smpl_joints_multi_future_local_nonflat",
+                "smpl_root_ori_b_multi_future",
+                "joint_pos_multi_future_wrist_for_smpl"
+              ],
+              "params": {
+                "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+                "input_dim": null,
+                "output_dim": null,
+                "module_config_dict": {
+                  "layer_config": {
+                    "type": "MLP",
+                    "activation": "SiLU",
+                    "hidden_dims": [
+                      2048,
+                      1024,
+                      512,
+                      512
+                    ]
+                  }
+                },
+                "num_input_temporal_dims": "${manager_env.commands.motion.smpl_num_future_frames}",
+                "num_output_temporal_dims": "${algo.config.actor.backbone.max_num_tokens}"
+              }
+            },
+            "teleop": {
+              "inputs": [
+                "command_multi_future_lower_body",
+                "vr_3point_local_target",
+                "vr_3point_local_orn_target",
+                "motion_anchor_ori_b"
+              ],
+              "params": {
+                "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+                "input_dim": null,
+                "output_dim": null,
+                "module_config_dict": {
+                  "layer_config": {
+                    "type": "MLP",
+                    "activation": "SiLU",
+                    "hidden_dims": [
+                      2048,
+                      1024,
+                      512,
+                      512
+                    ]
+                  }
+                },
+                "num_input_temporal_dims": null,
+                "num_output_temporal_dims": "${algo.config.actor.backbone.max_num_tokens}"
+              }
+            }
+          },
+          "quantizer": {
+            "_target_": "vector_quantize_pytorch.FSQ"
+          },
+          "aux_loss_coef": {
+            "g1_recon": 0.01,
+            "g1_smpl_latent": 1,
+            "g1_teleop_latent": 1,
+            "teleop_smpl_latent": 1,
+            "reencoded_smpl_g1_latent": 1
+          },
+          "aux_loss_func": {
+            "g1_recon": {
+              "_target_": "gear_sonic.trl.losses.token_losses.G1ReconLoss",
+              "loss_type": "mse"
+            },
+            "g1_smpl_latent": {
+              "_target_": "gear_sonic.trl.losses.token_losses.G1SmplLatentLoss",
+              "loss_type": "mse"
+            },
+            "g1_teleop_latent": {
+              "_target_": "gear_sonic.trl.losses.token_losses.G1TeleopLatentLoss",
+              "loss_type": "mse"
+            },
+            "teleop_smpl_latent": {
+              "_target_": "gear_sonic.trl.losses.token_losses.TeleopSmplLatentLoss",
+              "loss_type": "mse",
+              "detach_teleop_target": true
+            },
+            "reencoded_smpl_g1_latent": {
+              "_target_": "gear_sonic.trl.losses.token_losses.ReencodedSmplG1LatentLoss",
+              "loss_type": "mse"
+            }
+          },
+          "fsq_level_list": 32,
+          "max_num_tokens": 2,
+          "num_fsq_levels": 32,
+          "num_future_frames": "${manager_env.commands.motion.num_future_frames}",
+          "encoder_sample_probs": "${manager_env.commands.motion.encoder_sample_probs}",
+          "reencode_smpl_g1_recon": true,
+          "proprioception_features": [
+            "actor_obs"
+          ]
+        },
+        "has_aux_loss": true,
+        "input_obs_dict": true,
+        "running_mean_std": false
+      },
+      "gamma": 0.99,
+      "critic": {
+        "_target_": "gear_sonic.trl.modules.actor_critic_modules.Critic",
+        "backbone": {
+          "_target_": "gear_sonic.trl.modules.base_module.BaseModule",
+          "module_config_dict": {
+            "type": "MLP",
+            "input_dim": [
+              "critic_obs"
+            ],
+            "output_dim": [
+              1
+            ],
+            "layer_config": {
+              "type": "MLP",
+              "activation": "SiLU",
+              "hidden_dims": [
+                2048,
+                2048,
+                1024,
+                1024,
+                512,
+                512
+              ]
+            }
+          },
+          "process_output_dim": true
+        },
+        "running_mean_std": true
+      },
+      "schedule": "adaptive",
+      "clip_param": 0.2,
+      "desired_kl": 0.01,
+      "world_size": 1,
+      "global_rank": 0,
+      "entropy_coef": 0.01,
+      "max_grad_norm": 0.1,
+      "save_interval": 500,
+      "std_clamp_max": 0.5,
+      "std_clamp_min": 0.001,
+      "eval_frequency": 500,
+      "init_noise_std": 0.05,
+      "load_optimizer": true,
+      "adaptive_lr_max": 0.0002,
+      "adaptive_lr_min": 1e-05,
+      "value_loss_coef": 1,
+      "num_mini_batches": 4,
+      "use_clampped_std": true,
+      "use_padding_mask": false,
+      "num_steps_per_env": 24,
+      "actor_learning_rate": 2e-05,
+      "num_learning_epochs": 5,
+      "critic_learning_rate": 0.001,
+      "use_new_actor_critic": true,
+      "init_at_random_ep_len": true,
+      "use_clipped_value_loss": true,
+      "num_learning_iterations": 100000,
+      "ppo_shuffle_every_epoch": true,
+      "sync_advantage_normalization": true,
+      "empty_cache_every_n_ppo_epoch": -1
+    },
+    "_recursive_": false
+  },
+  "seed": 0,
+  "wandb": {
+    "wandb_id": null,
+    "wandb_dir": "/tmp",
+    "wandb_tags": "online",
+    "wandb_group": null,
+    "wandb_entity": null,
+    "wandb_project": null
+  },
+  "exp_var": "test",
+  "terrain": "???",
+  "trainer": {
+    "_target_": "gear_sonic.trl.trainer.ppo_trainer_aux_loss.TRLAuxLossPPOTrainer"
+  },
+  "base_dir": "logs_rl",
+  "exp_base": "${hydra:runtime.choices.exp}",
+  "headless": true,
+  "num_envs": 256,
+  "num_gpus": 1,
+  "save_dir": "${experiment_dir}/.hydra",
+  "sim_type": "isaacsim",
+  "callbacks": {
+    "wandb": {
+      "_target_": "gear_sonic.trl.callbacks.wandb_callback.WandbCallback"
+    },
+    "read_eval": {
+      "_target_": "gear_sonic.trl.callbacks.read_eval_callback.ReadEvalCallback",
+      "eval_dir": "${experiment_dir}/eval",
+      "check_interval": 1
+    },
+    "model_save": {
+      "_target_": "gear_sonic.trl.callbacks.model_save_callback.ModelSaveCallback",
+      "save_dir": "${experiment_dir}",
+      "max_disk_usage": 14.8,
+      "save_frequency": 2000
+    },
+    "im_resample": {
+      "_target_": "gear_sonic.trl.callbacks.im_resample_callback.ImResampleCallback",
+      "motion_resample_frequency": 250
+    }
+  },
+  "multi_gpu": false,
+  "timestamp": "${now:%Y%m%d_%H%M%S}",
+  "use_wandb": true,
+  "checkpoint": null,
+  "output_dir": "${experiment_dir}/output",
+  "env_spacing": 20,
+  "global_rank": 0,
+  "manager_env": {
+    "config": {
+      "robot": {
+        "type": "vr_h3_1"
+      },
+      "sim_dt": 0.005,
+      "rewards": {
+        "num_critics": 1
+      },
+      "num_envs": "${num_envs}",
+      "decimation": 4,
+      "viewer_eye": [
+        4.5,
+        0,
+        6
+      ],
+      "env_spacing": 2,
+      "object_mass": null,
+      "table_offset": null,
+      "terrain_type": "trimesh",
+      "viewer_lookat": [
+        0,
+        0,
+        2
+      ],
+      "experiment_dir": "${experiment_dir}",
+      "render_results": false,
+      "meta_action_dim": null,
+      "episode_length_s": 10,
+      "needs_policy_atm": true,
+      "action_clip_value": 20,
+      "train_only_events": [
+        "push_robot",
+        "compliance_force_push"
+      ],
+      "eval_camera_offset": [
+        2,
+        2,
+        1
+      ],
+      "save_rendering_dir": "${experiment_dir}/renderings_training",
+      "action_transform_module_cfg": null,
+      "action_transform_module_checkpoint": null
+    },
+    "events": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.events.EventCfg",
+      "base_com": {
+        "func": "gear_sonic.envs.manager_env.mdp:randomize_rigid_body_com",
+        "mode": "startup",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "body_names": "waist_roll_link"
+          },
+          "com_range": {
+            "x": [
+              -0.025,
+              0.025
+            ],
+            "y": [
+              -0.05,
+              0.05
+            ],
+            "z": [
+              -0.05,
+              0.05
+            ]
+          }
+        },
+        "_target_": "isaaclab.managers.EventTermCfg"
+      },
+      "push_robot": {
+        "func": "gear_sonic.envs.manager_env.mdp:push_by_setting_velocity",
+        "mode": "interval",
+        "params": {
+          "velocity_range": {
+            "x": [
+              -0.5,
+              0.5
+            ],
+            "y": [
+              -0.5,
+              0.5
+            ],
+            "z": [
+              -0.2,
+              0.2
+            ],
+            "yaw": [
+              -0.78,
+              0.78
+            ],
+            "roll": [
+              -0.52,
+              0.52
+            ],
+            "pitch": [
+              -0.52,
+              0.52
+            ]
+          }
+        },
+        "_target_": "isaaclab.managers.EventTermCfg",
+        "interval_range_s": [
+          4,
+          6
+        ]
+      },
+      "physics_material": {
+        "func": "gear_sonic.envs.manager_env.mdp:randomize_rigid_body_material",
+        "mode": "startup",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "body_names": ".*"
+          },
+          "num_buckets": 64,
+          "restitution_range": [
+            0,
+            0.5
+          ],
+          "static_friction_range": [
+            0.3,
+            1.6
+          ],
+          "dynamic_friction_range": [
+            0.3,
+            1.2
+          ]
+        },
+        "_target_": "isaaclab.managers.EventTermCfg"
+      },
+      "add_joint_default_pos": {
+        "func": "gear_sonic.envs.manager_env.mdp:randomize_joint_default_pos",
+        "mode": "startup",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "joint_names": [
+              ".*"
+            ]
+          },
+          "operation": "add",
+          "pos_distribution_params": [
+            -0.01,
+            0.01
+          ]
+        },
+        "_target_": "isaaclab.managers.EventTermCfg"
+      },
+      "randomize_rigid_body_mass": {
+        "func": "gear_sonic.envs.manager_env.mdp:randomize_rigid_body_mass",
+        "mode": "startup",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "body_names": ".*wrist_yaw.*|waist_roll_link"
+          },
+          "operation": "scale",
+          "mass_distribution_params": [
+            0.8,
+            2.5
+          ]
+        },
+        "_target_": "isaaclab.managers.EventTermCfg"
+      }
+    },
+    "actions": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.actions.ActionsCfg",
+      "joint_pos": {
+        "_target_": "isaaclab.envs.mdp.actions.JointPositionActionCfg",
+        "asset_name": "robot",
+        "joint_names": [
+          ".*"
+        ],
+        "use_default_offset": true
+      }
+    },
+    "rewards": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.rewards.RewardsCfg",
+      "feet_acc": {
+        "func": "gear_sonic.envs.manager_env.mdp:joint_acc_l2",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "joint_names": [
+              ".*ankle.*"
+            ]
+          }
+        },
+        "weight": -2.5e-06,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "joint_limit": {
+        "func": "gear_sonic.envs.manager_env.mdp:joint_pos_limits",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "joint_names": [
+              ".*"
+            ]
+          }
+        },
+        "weight": -10,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "action_rate_l2": {
+        "func": "gear_sonic.envs.manager_env.mdp:action_rate_l2",
+        "weight": -0.1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "anti_shake_ang_vel": {
+        "func": "gear_sonic.envs.manager_env.mdp:anti_shake_ang_vel_l2",
+        "params": {
+          "threshold": 1.5,
+          "body_names": [
+            "left_wrist_pitch_link",
+            "right_wrist_pitch_link",
+            "head_yaw_link"
+          ],
+          "command_name": "motion"
+        },
+        "weight": -0.005,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "undesired_contacts": {
+        "func": "gear_sonic.envs.manager_env.mdp:undesired_contacts",
+        "params": {
+          "threshold": 1,
+          "sensor_cfg": {
+            "name": "contact_forces",
+            "_target_": "isaaclab.managers.SceneEntityCfg",
+            "body_names": [
+              "^(?!.*ankle_roll_link)(?!.*wrist_pitch_link).+$"
+            ]
+          }
+        },
+        "weight": -0.1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_anchor_ori": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_anchor_ori_error",
+        "params": {
+          "std": 0.4,
+          "command_name": "motion"
+        },
+        "weight": 0.5,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_anchor_pos": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_anchor_pos_error",
+        "params": {
+          "std": 0.3,
+          "command_name": "motion"
+        },
+        "weight": 0.5,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_body_angvel": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_body_angvel_error",
+        "params": {
+          "std": 3.14,
+          "command_name": "motion"
+        },
+        "weight": 1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_body_linvel": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_body_linvel_error",
+        "params": {
+          "std": 1,
+          "command_name": "motion"
+        },
+        "weight": 1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_vr_5point_local": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_local_vr_5point_error",
+        "params": {
+          "std": 0.1,
+          "command_name": "motion"
+        },
+        "weight": 2,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_relative_body_ori": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_relative_body_ori_error",
+        "params": {
+          "std": 0.4,
+          "command_name": "motion"
+        },
+        "weight": 1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      },
+      "tracking_relative_body_pos": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_relative_body_pos_error",
+        "params": {
+          "std": 0.3,
+          "command_name": "motion"
+        },
+        "weight": 1,
+        "_target_": "isaaclab.managers.RewardTermCfg"
+      }
+    },
+    "_target_": "gear_sonic.envs.manager_env.modular_tracking_env_cfg.ModularTrackingEnvCfg",
+    "commands": {
+      "motion": {
+        "_target_": "gear_sonic.envs.manager_env.mdp.commands.TrackingCommandCfg",
+        "debug_vis": true,
+        "asset_name": "robot",
+        "body_names": [
+          "pelvis",
+          "left_hip_roll_link",
+          "left_knee_pitch_link",
+          "left_ankle_roll_link",
+          "right_hip_roll_link",
+          "right_knee_pitch_link",
+          "right_ankle_roll_link",
+          "waist_roll_link",
+          "left_shoulder_roll_link",
+          "left_elbow_pitch_link",
+          "left_wrist_pitch_link",
+          "right_shoulder_roll_link",
+          "right_elbow_pitch_link",
+          "right_wrist_pitch_link"
+        ],
+        "pose_range": {
+          "x": [
+            -0.05,
+            0.05
+          ],
+          "y": [
+            -0.05,
+            0.05
+          ],
+          "z": [
+            -0.01,
+            0.01
+          ],
+          "yaw": [
+            -0.2,
+            0.2
+          ],
+          "roll": [
+            -0.1,
+            0.1
+          ],
+          "pitch": [
+            -0.1,
+            0.1
+          ]
+        },
+        "anchor_body": "pelvis",
+        "motion_lib_cfg": {
+          "asset": {
+            "assetRoot": "gear_sonic/data/assets/robot_description/mjcf/",
+            "urdfFileName": "",
+            "assetFileName": "vr_h3_1_rl.xml"
+          },
+          "smpl_y_up": true,
+          "target_fps": 50,
+          "motion_file": "/home/hantp/Groot-WholeBodyControl/data/my_robot_motions/robot_filtered",
+          "multi_thread": true,
+          "extend_config": [],
+          "smpl_motion_file": "/home/hantp/Groot-WholeBodyControl/data/smpl_filtered",
+          "adaptive_sampling": {
+            "enable": true,
+            "bin_size": 50,
+            "decay_gamma": 0.8,
+            "init_num_failures": 1,
+            "uniform_sampling_rate": 0.1,
+            "use_failure_rate_decay": false,
+            "sequence_length_agnostic": true,
+            "pre_failure_sample_window": 200,
+            "adp_samp_failure_rate_max_over_mean": 200
+          },
+          "filter_motion_keys": "neutral_deep_breath_001__A544"
+        },
+        "velocity_range": {
+          "x": [
+            -0.5,
+            0.5
+          ],
+          "y": [
+            -0.5,
+            0.5
+          ],
+          "z": [
+            -0.2,
+            0.2
+          ],
+          "yaw": [
+            -0.78,
+            0.78
+          ],
+          "roll": [
+            -0.52,
+            0.52
+          ],
+          "pitch": [
+            -0.52,
+            0.52
+          ]
+        },
+        "vr_3point_body": [
+          "left_wrist_pitch_link",
+          "right_wrist_pitch_link",
+          "waist_roll_link"
+        ],
+        "freeze_frame_aug": true,
+        "num_future_frames": 10,
+        "reward_point_body": [
+          "pelvis",
+          "left_wrist_pitch_link",
+          "right_wrist_pitch_link",
+          "left_ankle_roll_link",
+          "right_ankle_roll_link"
+        ],
+        "cat_upper_body_poses": true,
+        "dt_future_ref_frames": 0.1,
+        "encoder_sample_probs": {
+          "g1": 1,
+          "smpl": 1,
+          "teleop": 1
+        },
+        "joint_position_range": [
+          -0.1,
+          0.1
+        ],
+        "joint_velocity_range": [
+          0,
+          0
+        ],
+        "resampling_time_range": [
+          1000000000,
+          1000000000
+        ],
+        "vr_3point_body_offset": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            -0.015,
+            0,
+            0.5881
+          ]
+        ],
+        "smpl_num_future_frames": 10,
+        "reward_point_body_offset": [
+          [
+            0,
+            0,
+            0.5
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "cat_upper_body_poses_prob": 0.5,
+        "smpl_dt_future_ref_frames": 0.02,
+        "teleop_sample_prob_when_smpl": 0.5
+      },
+      "_target_": "gear_sonic.envs.manager_env.mdp.commands.CommandsCfg"
+    },
+    "recorders": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.recorders.RecordersCfg"
+    },
+    "curriculum": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.curriculum.CurriculumCfg"
+    },
+    "observations": {
+      "critic": {
+        "actions": {
+          "func": "gear_sonic.envs.manager_env.mdp:last_action",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${critic_actions_history_length}"
+        },
+        "_target_": "gear_sonic.envs.manager_env.mdp.observations.PrivilegedCfg",
+        "body_ori": {
+          "func": "gear_sonic.envs.manager_env.mdp:robot_body_ori_b",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "body_pos": {
+          "func": "gear_sonic.envs.manager_env.mdp:robot_body_pos_b",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "joint_pos": {
+          "func": "gear_sonic.envs.manager_env.mdp:joint_pos_rel",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${critic_prop_history_length}"
+        },
+        "joint_vel": {
+          "func": "gear_sonic.envs.manager_env.mdp:joint_vel_rel",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${critic_prop_history_length}"
+        },
+        "base_ang_vel": {
+          "func": "gear_sonic.envs.manager_env.mdp:base_ang_vel",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${critic_prop_history_length}"
+        },
+        "base_lin_vel": {
+          "func": "gear_sonic.envs.manager_env.mdp:base_lin_vel",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${critic_prop_history_length}"
+        },
+        "motion_anchor_ori_b": {
+          "func": "gear_sonic.envs.manager_env.mdp:motion_anchor_ori_b",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "motion_anchor_pos_b": {
+          "func": "gear_sonic.envs.manager_env.mdp:motion_anchor_pos_b",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "command_multi_future": {
+          "func": "gear_sonic.envs.manager_env.mdp:command_multi_future",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        }
+      },
+      "policy": {
+        "actions": {
+          "func": "gear_sonic.envs.manager_env.mdp:last_action",
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${actor_actions_history_length}"
+        },
+        "_target_": "gear_sonic.envs.manager_env.mdp.observations.PolicyCfg",
+        "joint_pos": {
+          "func": "gear_sonic.envs.manager_env.mdp:joint_pos_rel",
+          "noise": {
+            "n_max": 0.01,
+            "n_min": -0.01,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${actor_prop_history_length}"
+        },
+        "joint_vel": {
+          "func": "gear_sonic.envs.manager_env.mdp:joint_vel_rel",
+          "noise": {
+            "n_max": 0.5,
+            "n_min": -0.5,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${actor_prop_history_length}"
+        },
+        "gravity_dir": {
+          "func": "gear_sonic.envs.manager_env.mdp:gravity_dir",
+          "noise": {
+            "n_max": 0.05,
+            "n_min": -0.05,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${actor_prop_history_length}"
+        },
+        "base_ang_vel": {
+          "func": "gear_sonic.envs.manager_env.mdp:base_ang_vel",
+          "noise": {
+            "n_max": 0.2,
+            "n_min": -0.2,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg",
+          "history_length": "${actor_prop_history_length}"
+        },
+        "concatenate_terms": true,
+        "enable_corruption": true
+      },
+      "_target_": "gear_sonic.envs.manager_env.mdp.observations.ObservationsCfg",
+      "tokenizer": {
+        "_target_": "gear_sonic.envs.manager_env.mdp.observations.TokenizerCfg",
+        "command_z": {
+          "func": "gear_sonic.envs.manager_env.mdp:command_z",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "encoder_index": {
+          "func": "gear_sonic.envs.manager_env.mdp:get_command_obs",
+          "params": {
+            "obs_name": "episode_encoder_index",
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "concatenate_terms": false,
+        "enable_corruption": true,
+        "motion_anchor_ori_b": {
+          "func": "gear_sonic.envs.manager_env.mdp:motion_anchor_ori_b",
+          "noise": {
+            "n_max": 0.05,
+            "n_min": -0.05,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "vr_3point_local_target": {
+          "func": "gear_sonic.envs.manager_env.mdp:vr_3point_local_target",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "vr_3point_local_orn_target": {
+          "func": "gear_sonic.envs.manager_env.mdp:vr_3point_local_orn_target",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "command_multi_future_nonflat": {
+          "func": "gear_sonic.envs.manager_env.mdp:command_multi_future",
+          "params": {
+            "non_flatten": true,
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "smpl_root_ori_b_multi_future": {
+          "func": "gear_sonic.envs.manager_env.mdp:smpl_root_ori_b_mf",
+          "noise": {
+            "n_max": 0.05,
+            "n_min": -0.05,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "params": {
+            "non_flatten": true,
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "command_z_multi_future_nonflat": {
+          "func": "gear_sonic.envs.manager_env.mdp:command_z_multi_future",
+          "params": {
+            "non_flatten": true,
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "motion_anchor_ori_b_mf_nonflat": {
+          "func": "gear_sonic.envs.manager_env.mdp:motion_anchor_ori_b_mf",
+          "noise": {
+            "n_max": 0.05,
+            "n_min": -0.05,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "params": {
+            "non_flatten": true,
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "command_multi_future_lower_body": {
+          "func": "gear_sonic.envs.manager_env.mdp:command_multi_future_lower_body",
+          "params": {
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "joint_pos_multi_future_wrist_for_smpl": {
+          "func": "gear_sonic.envs.manager_env.mdp:joint_pos_multi_future_select_joints_for_smpl",
+          "params": {
+            "joints_idx": [
+              22,
+              23,
+              24,
+              25,
+              26,
+              27
+            ],
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        },
+        "smpl_joints_multi_future_local_nonflat": {
+          "func": "gear_sonic.envs.manager_env.mdp:smpl_joints_multi_future_local",
+          "noise": {
+            "n_max": 0.05,
+            "n_min": -0.05,
+            "_target_": "isaaclab.utils.noise.AdditiveUniformNoiseCfg"
+          },
+          "params": {
+            "non_flatten": true,
+            "command_name": "motion"
+          },
+          "_target_": "isaaclab.managers.ObservationTermCfg"
+        }
+      }
+    },
+    "terminations": {
+      "_target_": "gear_sonic.envs.manager_env.mdp.terminations.TerminationsCfg",
+      "time_out": {
+        "func": "gear_sonic.envs.manager_env.mdp:tracking_time_out",
+        "params": {
+          "command_name": "motion"
+        },
+        "_target_": "isaaclab.managers.TerminationTermCfg",
+        "time_out": true
+      },
+      "anchor_pos": {
+        "func": "gear_sonic.envs.manager_env.mdp:exceeded_anchor_height",
+        "params": {
+          "threshold": 0.15,
+          "command_name": "motion",
+          "down_threshold": 0.75,
+          "threshold_adaptive": true,
+          "root_height_threshold": 0.5
+        },
+        "_target_": "isaaclab.managers.TerminationTermCfg"
+      },
+      "ee_body_pos": null,
+      "foot_pos_xyz": null,
+      "anchor_ori_full": {
+        "func": "gear_sonic.envs.manager_env.mdp:exceeded_anchor_ori",
+        "params": {
+          "asset_cfg": {
+            "name": "robot",
+            "_target_": "isaaclab.managers.SceneEntityCfg"
+          },
+          "threshold": 0.5,
+          "command_name": "motion"
+        },
+        "_target_": "isaaclab.managers.TerminationTermCfg"
+      }
+    }
+  },
+  "max_retries": 1,
+  "project_name": "TRL_VR_H3_1_Track",
+  "log_task_name": "TEST",
+  "eval_overrides": {
+    "headless": false,
+    "num_envs": 1,
+    "use_wandb": false,
+    "auto_load_latest": false
+  },
+  "experiment_dir": "${base_dir}/${project_name}/${experiment_name}-${timestamp}",
+  "experiment_name": "${exp_base}_${exp_var}",
+  "use_manager_env": true,
+  "auto_load_latest": false,
+  "codebase_version": 1,
+  "force_flat_terrain": false,
+  "actor_prop_history_length": 10,
+  "critic_prop_history_length": 10,
+  "actor_actions_history_length": 10,
+  "critic_actions_history_length": 10
+}

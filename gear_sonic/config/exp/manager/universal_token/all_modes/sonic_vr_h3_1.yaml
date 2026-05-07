@@ -1,5 +1,5 @@
 # @package _global_
-# SONIC VR_H3_1 config — 3 encoders for VR H3-1 robot (30 controllable DOF).
+# SONIC VR_H3_1 config - 3 encoders for VR H3-1 robot (28 controllable DOF).
 # Based on sonic_h2 but targeting the vr_h3_1 robot.
 
 defaults:
@@ -35,6 +35,40 @@ critic_actions_history_length: 10
 
 manager_env:
   rewards:
+    # H3 tracking phase 2026-05-06: W&B run yg5qp9el reached time_out ~0.91
+    # but tracking rewards plateaued around vr_5point~0.43, body_pos~0.26,
+    # anchor_pos~0.09. Increase tracking pressure after survival is stable.
+    tracking_anchor_pos:
+      # H3 walk phase 2026-05-06: 11-motion eval had success=1.0 but global
+      # MPJPE jumped to 0.245m while train error_anchor_pos was ~0.47m. Push
+      # root/XY tracking harder for walking motions before scaling further.
+      # H3 root-lock phase 2026-05-06: target error_anchor_pos <0.15 for
+      # walking. Increase root tracking pressure after weight=3/std=0.3 reached
+      # error_anchor_pos ~0.185 with time_out ~0.96 and anchor_pos_xy ~0.02.
+      weight: 4.0
+      params:
+        std: 0.3
+    tracking_anchor_ori:
+      weight: 0.75
+    tracking_relative_body_pos:
+      weight: 1.5
+    tracking_relative_body_ori:
+      weight: 1.25
+    tracking_body_linvel:
+      weight: 1.25
+    tracking_body_angvel:
+      weight: 1.25
+    tracking_vr_5point_local:
+      weight: 3.0
+      params:
+        # H3 early tracking: std=0.1 made the 5-point reward plateau while
+        # foot MPJPE was still ~0.116m. Use a wider kernel for gradient, then
+        # tighten back to 0.1 once multi-motion tracking is stable.
+        std: 0.15
+    action_rate_l2:
+      # H3 tracking phase 2026-05-06: last500 action penalty was ~-0.45 while
+      # tracking had plateaued. Relax this during the tracking-improvement pass.
+      weight: -0.05
     feet_acc:
       weight: -2.5e-6
     anti_shake_ang_vel:
@@ -57,7 +91,11 @@ manager_env:
     motion:
       anchor_body: "pelvis"
       vr_3point_body: ["left_wrist_pitch_link", "right_wrist_pitch_link", "waist_roll_link"]
-      reward_point_body: ["pelvis", "left_wrist_pitch_link", "right_wrist_pitch_link", "left_ankle_roll_link", "right_ankle_roll_link"]
+      # H3 tuning 2026-05-05: use H3-specific tracking offsets instead of inheriting
+      # the G1 wrist_yaw/torso offsets. Head proxy is waist_roll_link -> head_yaw_link
+      # from vr_h3_1_rl.xml: [-0.015, 0.0, 0.5881].
+      vr_3point_body_offset: [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [-0.015, 0.0, 0.5881]]
+      reward_point_body: ["waist_roll_link", "left_wrist_pitch_link", "right_wrist_pitch_link", "left_ankle_roll_link", "right_ankle_roll_link"]
       body_names: [
         "pelvis", "left_hip_roll_link", "left_knee_pitch_link", "left_ankle_roll_link",
         "right_hip_roll_link", "right_knee_pitch_link", "right_ankle_roll_link",
@@ -65,7 +103,9 @@ manager_env:
         "left_wrist_pitch_link", "right_shoulder_roll_link", "right_elbow_pitch_link",
         "right_wrist_pitch_link",
       ]
-      reward_point_body_offset: [[0.0, 0.0, 0.5], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+      # H3 tracking phase 2026-05-06: align 5-point reward head proxy with the
+      # H3 VR head proxy. Previous pelvis+[0,0,0.5] was a G1-style torso proxy.
+      reward_point_body_offset: [[-0.015, 0.0, 0.5881], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
       num_future_frames: 10
       dt_future_ref_frames: 0.1
       smpl_num_future_frames: 10
@@ -85,14 +125,27 @@ manager_env:
         asset:
           assetFileName: "vr_h3_1_rl.xml"
   terminations:
-    ee_body_pos:
+    # H3 ablation 2026-05-06: root orientation is now the main bottleneck
+    # after disabling foot/EE terminations. Relax it during early H3 training,
+    # then re-tighten toward 0.2 once Mean length/time_out are stable.
+    anchor_ori_full:
       params:
         threshold: 0.5
-        body_names: ["left_ankle_roll_link", "right_ankle_roll_link", "left_wrist_pitch_link", "right_wrist_pitch_link"]
-    foot_pos_xyz:
+    # H3 walk phase 2026-05-06: prevent large horizontal root drift during
+    # walking while keeping this much looser than final tracking quality.
+    anchor_pos_xy:
+      _target_: isaaclab.managers.TerminationTermCfg
+      func: gear_sonic.envs.manager_env.mdp:exceeded_anchor_pos_xy
       params:
-        threshold: 0.5
-        body_names: ["left_ankle_roll_link", "right_ankle_roll_link"]
+        command_name: "motion"
+        # H3 root-lock phase 2026-05-06: 0.5m reduced root drift but caused
+        # anchor_pos_xy termination ~11% / time_out ~0.87. Keep root pressure
+        # in reward, but relax termination so episodes are not cut too often.
+        threshold: 0.7
+    # H3 ablation 2026-05-05: disable EE/foot termination completely. The
+    # inherited base config defines them, so use null rather than commenting only.
+    ee_body_pos: null
+    foot_pos_xyz: null
   events:
     base_com:
       params:

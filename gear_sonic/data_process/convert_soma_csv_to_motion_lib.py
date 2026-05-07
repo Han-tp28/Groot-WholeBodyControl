@@ -74,7 +74,16 @@ ROBOT_CONFIGS = {
     "vr_h3_1": {
         "num_dof": 28,
         "num_bodies": 29,
-        "mj_to_il": np.arange(28, dtype=np.int32),
+        # H3 tuning 2026-05-05: IsaacLab -> MuJoCo DOF order. The old identity
+        # mapping only works when input joint_order is already "mj"; for
+        # IsaacLab-order inputs it scrambles the reference motion.
+        "mj_to_il": np.array(
+            [
+                0, 3, 6, 10, 14, 18, 1, 4, 7, 11, 15, 19, 2, 5, 8, 12, 16, 20,
+                22, 24, 26, 9, 13, 17, 21, 23, 25, 27,
+            ],
+            dtype=np.int32,
+        ),
         "dof_axis": np.array(
             [
                 [0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 0], [1, 0, 0],  # left leg

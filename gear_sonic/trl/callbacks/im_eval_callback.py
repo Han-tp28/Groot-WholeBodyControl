@@ -544,28 +544,36 @@ class ImEvalCallback(TrainerCallback):
                 ]
                 """
 
-                # Define subsets
-                # 6 + 3 + 5 = 14
+                def _first_existing(*names):
+                    for name in names:
+                        if name in body_names:
+                            return name
+                    raise ValueError(
+                        f"None of {names} found in motion command body_names: {body_names}"
+                    )
+
+                # Define subsets. Some embodiments use G1-style names
+                # (left_knee_link/wrist_yaw/torso), while H3 uses pitch-suffixed
+                # links and waist_roll as the head proxy command body.
                 legs_subset_names = [
                     "left_hip_roll_link",
-                    "left_knee_link",
+                    _first_existing("left_knee_link", "left_knee_pitch_link"),
                     "left_ankle_roll_link",
                     "right_hip_roll_link",
-                    "right_knee_link",
+                    _first_existing("right_knee_link", "right_knee_pitch_link"),
                     "right_ankle_roll_link",
                 ]
-                # NOTE use torso_link instead of head for vr_3points_subset_names
                 vr_3points_subset_names = [
-                    "torso_link",
-                    "left_wrist_yaw_link",
-                    "right_wrist_yaw_link",
+                    _first_existing("torso_link", "waist_roll_link"),
+                    _first_existing("left_wrist_yaw_link", "left_wrist_pitch_link"),
+                    _first_existing("right_wrist_yaw_link", "right_wrist_pitch_link"),
                 ]
                 other_upper_bodies_subset_names = [
                     "pelvis",
                     "left_shoulder_roll_link",
-                    "left_elbow_link",
+                    _first_existing("left_elbow_link", "left_elbow_pitch_link"),
                     "right_shoulder_roll_link",
-                    "right_elbow_link",
+                    _first_existing("right_elbow_link", "right_elbow_pitch_link"),
                 ]
 
                 foot_subset_names = ["left_ankle_roll_link", "right_ankle_roll_link"]
@@ -594,8 +602,20 @@ class ImEvalCallback(TrainerCallback):
                     g[:, other_upper_bodies_indices, :] for g in self.gt_pos_all
                 ]
 
-                # Lazy import to avoid cffi version conflict with IsaacSim
-                from smpl_sim.smpllib.smpl_eval import compute_metrics_lite
+                # Lazy import to avoid cffi version conflict with IsaacSim. Some local
+                # IsaacLab envs do not install smpl_sim; keep eval usable with a
+                # simple global MPJPE fallback for embodiment debugging.
+                try:
+                    from smpl_sim.smpllib.smpl_eval import compute_metrics_lite
+                except ModuleNotFoundError:
+
+                    def compute_metrics_lite(pred_pos, gt_pos, concatenate=False):  # noqa: ARG001
+                        return {
+                            "mpjpe_g": [
+                                np.linalg.norm(pred - gt, axis=-1)
+                                for pred, gt in zip(pred_pos, gt_pos, strict=False)
+                            ]
+                        }
 
                 metrics_all = compute_metrics_lite(
                     self.pred_pos_all, self.gt_pos_all, concatenate=False
