@@ -33,6 +33,7 @@
  *
  *   Key  | Action
  *   -----|-------
+ *   Space | Start streamed-motion policy mode (POSE/ZMQ)
  *   O/o  | Emergency stop
  *   g/G, h/H | Left-hand compliance ±0.1
  *   b/B, v/V | Right-hand compliance ±0.1
@@ -162,12 +163,20 @@ class ZMQManager : public InputInterface {
       report_temperature_flag_ = false;
       start_control_ = false;
       stop_control_ = false;
+      bool trigger_zmq_toggle = false;
       
       // Handle stdin shortcuts
       char ch;
       while (ReadStdinChar(ch)) {
         bool is_manager_key = false;
         switch (ch) {
+          case ' ':
+            start_control_ = true;
+            active_mode_ = ManagedMode::STREAMED_MOTION;
+            trigger_zmq_toggle = true;
+            is_manager_key = true;
+            std::cout << "[ZMQManager] SPACE pressed: starting streamed policy control" << std::endl;
+            break;
           case 'o':
           case 'O':
             emergency_stop_ = true;
@@ -226,7 +235,6 @@ class ZMQManager : public InputInterface {
       }
 
       // Translate received command to control flags and handle mode switching
-      bool trigger_zmq_toggle = false;
       {
         std::lock_guard<std::mutex> lock(command_mutex_);
         if (latest_command_.valid) {
@@ -358,6 +366,10 @@ class ZMQManager : public InputInterface {
         
         // Clear hand joints control state
         has_hand_joints_ = false;
+      }
+
+      if (start_control_) {
+        operator_state.start = true;
       }
 
       // Delegate based on current mode

@@ -1,0 +1,22 @@
+# Curated VR_H3_1 reference motions, ordered from easier to harder.
+# MotionDataReader loads this file in order when present.
+
+# Easy: stable locomotion and small pose changes.
+neutral_walk_180_R_001__A073
+neutral_walk_180_R_003__A073
+neutral_walk_180_R_004__A073
+neutral_idle_turn_360_001__A073
+neutral_stoop_down_R_002__A073
+
+# Medium: faster gait and height/terrain transitions.
+jog_ff_start_180_R_001__A073
+jog_ff_loop_180_R_003__A073
+come_up_50cm_box_R_001__A073
+come_down_50cm_box_R_003__A073
+
+# Hard: jumping, rotation, reaching, and whole-body choreography.
+neutral_jump_ff_180_R_001__A073
+jump_ff_180_R_001__A073
+jump_ff_270_001__A073
+reach_jump_R_001__A073
+dancing_routine_1_001__A073

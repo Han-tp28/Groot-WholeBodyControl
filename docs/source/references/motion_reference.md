@@ -28,6 +28,20 @@ reference/my_motions/
 ```
 
 The C++ reader scans the base directory for subfolders, reads each subfolder as one motion, and validates frame-count consistency across all files in that folder. 
+
+If a dataset contains `motion_playlist.txt`, the reader loads only the motion names listed in that file, in that exact order. Blank lines and `#` comments are ignored. This is useful for deployment playlists where easy motions should come first.
+
+Example VR_H3_1 deployment playlist:
+
+```
+reference/vr_h3_1_221125/
+├── motion_playlist.txt
+├── neutral_walk_180_R_001__A073/
+├── jog_ff_loop_180_R_003__A073/
+└── ...
+```
+
+The default VR_H3_1 deploy dataset uses `reference/vr_h3_1_221125/motion_playlist.txt`, ordered from easier walking motions through jogging, box transitions, jumps, and dance motions.
 ---
 
 ## File Formats

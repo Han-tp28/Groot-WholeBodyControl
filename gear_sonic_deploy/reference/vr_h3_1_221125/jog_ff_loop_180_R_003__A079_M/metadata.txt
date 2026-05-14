@@ -1,0 +1,13 @@
+Metadata for: jog_ff_loop_180_R_003__A079_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 303
+
+Data arrays summary:
+  joint_pos: (303, 28)
+  joint_vel: (303, 28)
+  body_pos_w: (303, 1, 3)
+  body_quat_w: (303, 1, 4)

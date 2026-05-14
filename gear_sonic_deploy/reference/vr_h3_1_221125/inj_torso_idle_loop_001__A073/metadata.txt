@@ -1,0 +1,13 @@
+Metadata for: inj_torso_idle_loop_001__A073
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 891
+
+Data arrays summary:
+  joint_pos: (891, 28)
+  joint_vel: (891, 28)
+  body_pos_w: (891, 1, 3)
+  body_quat_w: (891, 1, 4)

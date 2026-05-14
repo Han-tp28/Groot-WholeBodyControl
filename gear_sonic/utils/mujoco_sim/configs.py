@@ -102,7 +102,8 @@ def override_wbc_config(
     # Sim-to-real KD gap: waist pitch (index 14) is over-damped in sim;
     # reduce KD by 10 on the real robot to avoid sluggish response
     if config.env_type == "real":
-        wbc_config["MOTOR_KD"][14] = wbc_config["MOTOR_KD"][14] - 10
+        if config.robot == "g1":
+            wbc_config["MOTOR_KD"][14] = wbc_config["MOTOR_KD"][14] - 10
 
     return wbc_config
 
@@ -112,6 +113,9 @@ class BaseConfig(ArgsConfigTemplate):
     """Base config inherited by all G1 control loops"""
 
     dataset_version: str = "sonic_model12"
+
+    robot: Literal["g1", "vr_h3_1"] = "g1"
+    """Robot model to use for the MuJoCo sim loop."""
 
     # WBC Configuration
     wbc_version: Literal[tuple(WBC_VERSIONS)] = "sonic_model12"
@@ -313,12 +317,14 @@ class BaseConfig(ArgsConfigTemplate):
         gear_sonic_path = Path(os.path.dirname(gear_sonic.__file__))
         configs_dir = gear_sonic_path / "utils" / "mujoco_sim" / "wbc_configs"
 
-        if self.wbc_version == "sonic_model12":
+        if self.wbc_version == "sonic_model12" and self.robot == "g1":
             config_path = str(configs_dir / "g1_29dof_sonic_model12.yaml")
+        elif self.wbc_version == "sonic_model12" and self.robot == "vr_h3_1":
+            config_path = str(configs_dir / "vr_h3_1_sonic_model12.yaml")
         else:
             raise ValueError(
-                f"Invalid wbc_version: {self.wbc_version}, please use one of: "
-                f"sonic_model12"
+                f"Invalid wbc_version/robot: {self.wbc_version}/{self.robot}, "
+                "please use sonic_model12 with g1 or vr_h3_1"
             )
 
         with open(config_path) as file:

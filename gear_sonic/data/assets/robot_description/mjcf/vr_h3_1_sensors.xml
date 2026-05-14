@@ -33,8 +33,8 @@
     <jointpos name="right_wrist_roll_pos" joint="right_wrist_roll_joint" />
     <jointpos name="right_wrist_pitch_pos" joint="right_wrist_pitch_joint" />
 
-		<jointpos name="head_yaw_pos" joint="head_yaw_joint" />
-		<jointpos name="head_pitch_pos" joint="head_pitch_joint" />
+		<!-- <jointpos name="head_yaw_pos" joint="head_yaw_joint" />
+		<jointpos name="head_pitch_pos" joint="head_pitch_joint" /> -->
 
     <jointvel name="left_hip_pitch_vel" joint="left_hip_pitch_joint" />
     <jointvel name="left_hip_roll_vel" joint="left_hip_roll_joint" />
@@ -69,8 +69,8 @@
     <jointvel name="right_wrist_roll_vel" joint="right_wrist_roll_joint" />
     <jointvel name="right_wrist_pitch_vel" joint="right_wrist_pitch_joint" />
 
-		<jointvel name="head_yaw_vel" joint="head_yaw_joint" />
-		<jointvel name="head_pitch_vel" joint="head_pitch_joint" />
+		<!-- <jointvel name="head_yaw_vel" joint="head_yaw_joint" />
+		<jointvel name="head_pitch_vel" joint="head_pitch_joint" /> -->
 
     <jointactuatorfrc name="left_hip_pitch_torque" joint="left_hip_pitch_joint" />
     <jointactuatorfrc name="left_hip_roll_torque" joint="left_hip_roll_joint" />
@@ -105,8 +105,8 @@
     <jointactuatorfrc name="right_wrist_roll_torque" joint="right_wrist_roll_joint" />
     <jointactuatorfrc name="right_wrist_pitch_torque" joint="right_wrist_pitch_joint" />
 
-		<jointactuatorfrc name="head_yaw_torque" joint="head_yaw_joint" />
-		<jointactuatorfrc name="head_pitch_torque" joint="head_pitch_joint" />
+		<!-- <jointactuatorfrc name="head_yaw_torque" joint="head_yaw_joint" />
+		<jointactuatorfrc name="head_pitch_torque" joint="head_pitch_joint" /> -->
 
     <!-- IMU sensors -->
     <gyro name="imu_ang_vel" site="imu" />

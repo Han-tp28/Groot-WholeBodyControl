@@ -117,3 +117,26 @@ git lfs pull
 python check_environment.py
 ```
 
+
+
+```bash
+
+
+source .venv_sim/bin/activate
+python gear_sonic/scripts/run_sim_loop.py --robot vr_h3_1 --interface sim
+
+
+cd /home/han/GR00T-WholeBodyControl/gear_sonic_deploy
+bash deploy.sh --input-type keyboard sim
+
+
+bash deploy.sh --robot vr_h3_1 --input-type keyboard --motion-data reference/vr_h3_1_221125 sim
+
+
+teleop:
+
+source .venv_teleop/bin/activate
+
+python gear_sonic/scripts/pico_manager_thread_server.py --manager \
+    --robot vr_h3_1 \
+    --vis_vr3pt --vis_smpl

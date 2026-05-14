@@ -490,7 +490,7 @@ public:
             planner_motion_50hz_.BodyQuaternions(f_50hz)[0] = quat_slerp_d(q0, q1, f_30hz - f0);
 
             // resample joint angles:
-            for(int joint = 0; joint < 29; ++joint) {
+            for(int joint = 0; joint < G1_NUM_MOTOR; ++joint) {
                 planner_motion_50hz_.JointPositions(f_50hz)[joint] =
                     w0 * mujoco_qpos_data[f0 * (G1_NUM_MOTOR + 7) + 7 + mujoco_to_isaaclab[joint]] + 
                     w1 * mujoco_qpos_data[f1 * (G1_NUM_MOTOR + 7) + 7 + mujoco_to_isaaclab[joint]];
@@ -500,7 +500,7 @@ public:
         // Update joint velocities using optimized frame access (no redundant resize)
         for(int32_t frame = 0; frame < planner_motion_50hz_.timesteps-1; ++frame)
         {
-            for(int joint = 0; joint < 29; ++joint)
+            for(int joint = 0; joint < G1_NUM_MOTOR; ++joint)
             {
                 planner_motion_50hz_.JointVelocities(frame)[joint] = (
                     planner_motion_50hz_.JointPositions(frame+1)[joint] -
@@ -510,7 +510,7 @@ public:
         }
 
         // Handle last frame velocity
-        for(int joint = 0; joint < 29; ++joint)
+        for(int joint = 0; joint < G1_NUM_MOTOR; ++joint)
         {
             planner_motion_50hz_.JointVelocities(planner_motion_50hz_.timesteps-1)[joint] = planner_motion_50hz_.JointVelocities(planner_motion_50hz_.timesteps-2)[joint];
         }

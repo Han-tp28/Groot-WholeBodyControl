@@ -28,8 +28,12 @@ static const std::string HG_CMD_TOPIC = "rt/lowcmd";       ///< Low-level motor 
 static const std::string HG_IMU_TORSO = "rt/secondary_imu";///< Secondary (torso) IMU topic.
 static const std::string HG_STATE_TOPIC = "rt/lowstate";    ///< Low-level motor / sensor state topic.
 
-/// Total number of actuated joints on the G1 (29-DOF configuration).
+/// Total number of actuated joints for the current deploy target.
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const int G1_NUM_MOTOR = 28;
+#else
 const int G1_NUM_MOTOR = 29;
+#endif
 
 /**
  * @brief Per-joint motor command sent to the low-level controller.

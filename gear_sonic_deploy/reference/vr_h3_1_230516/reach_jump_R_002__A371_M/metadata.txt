@@ -1,0 +1,13 @@
+Metadata for: reach_jump_R_002__A371_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 739
+
+Data arrays summary:
+  joint_pos: (739, 28)
+  joint_vel: (739, 28)
+  body_pos_w: (739, 1, 3)
+  body_quat_w: (739, 1, 4)

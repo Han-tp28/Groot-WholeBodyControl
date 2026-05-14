@@ -1,0 +1,13 @@
+Metadata for: inj_torso_jump_ff_180_R_001__A073
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 800
+
+Data arrays summary:
+  joint_pos: (800, 28)
+  joint_vel: (800, 28)
+  body_pos_w: (800, 1, 3)
+  body_quat_w: (800, 1, 4)

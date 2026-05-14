@@ -1,0 +1,13 @@
+Metadata for: body_check_002__A369
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 3895
+
+Data arrays summary:
+  joint_pos: (3895, 28)
+  joint_vel: (3895, 28)
+  body_pos_w: (3895, 1, 3)
+  body_quat_w: (3895, 1, 4)

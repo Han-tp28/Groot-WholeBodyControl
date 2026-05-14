@@ -1,6 +1,6 @@
-"""Entry point for running a MuJoCo simulation loop with the G1 robot model.
+"""Entry point for running a MuJoCo simulation loop.
 
-Parses a YAML-based WBC config via tyro CLI, instantiates the G1 robot model,
+Parses a YAML-based WBC config via tyro CLI, instantiates the selected robot model,
 and launches the simulator (optionally with offscreen image publishing).
 """
 
@@ -10,8 +10,9 @@ import tyro
 
 from gear_sonic.utils.mujoco_sim.simulator_factory import SimulatorFactory, init_channel
 from gear_sonic.utils.mujoco_sim.configs import SimLoopConfig
-from gear_sonic.data.robot_model.instantiation.g1 import (
+from gear_sonic.data.robot_model.instantiation import (
     instantiate_g1_robot_model,
+    instantiate_vr_h3_1_robot_model,
 )
 from gear_sonic.data.robot_model.robot_model import RobotModel
 
@@ -43,7 +44,13 @@ def main(config: ArgsConfig):
             config.enable_offscreen
         ), "enable_offscreen must be True when enable_image_publish is True"
 
-    robot_model = instantiate_g1_robot_model()
+    if config.robot == "g1":
+        robot_model = instantiate_g1_robot_model()
+    elif config.robot == "vr_h3_1":
+        waist_location = "lower_and_upper_body" if config.enable_waist else "lower_body"
+        robot_model = instantiate_vr_h3_1_robot_model(waist_location=waist_location)
+    else:
+        raise ValueError(f"Unsupported robot: {config.robot}")
 
     sim_wrapper = SimWrapper(
         robot_model=robot_model,

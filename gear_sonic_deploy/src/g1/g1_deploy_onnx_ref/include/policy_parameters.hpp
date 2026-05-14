@@ -1,7 +1,7 @@
 /**
  * @file policy_parameters.hpp
  * @brief Motor constants, PID gains, joint mappings, action scales, and default
- *        standing angles for the G1 29-DOF policy.
+ *        standing angles for the selected deploy robot policy.
  *
  * ## Joint Ordering
  *
@@ -33,6 +33,9 @@
 #define POLICY_PARAMETERS_HPP
 
 #include <array>
+#include <vector>
+
+#include "robot_parameters.hpp"
 
 const double ONE_DEGREE = 0.0174533;  ///< One degree in radians.
 
@@ -85,8 +88,13 @@ const std::vector<int> wrist_joint_mujoco_order_in_isaaclab_index = {23, 25, 27,
 const std::vector<int> wrist_joint_mujoco_order_in_mujoco_index = {19, 20, 21, 26, 27, 28};
 
 // wrist joint index (isaaclab order)
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::vector<int> wrist_joint_isaaclab_order_in_isaaclab_index = {18, 19, 20, 25, 26, 27};
+const std::vector<int> wrist_joint_isaaclab_order_in_mujoco_index = {22, 23, 24, 25, 26, 27};
+#else
 const std::vector<int> wrist_joint_isaaclab_order_in_isaaclab_index = {23, 24, 25, 26, 27, 28};
 const std::vector<int> wrist_joint_isaaclab_order_in_mujoco_index = {19, 26, 20, 27, 21, 28};
+#endif
 
 // lower body joint index (mujoco order)
 const std::vector<int> lower_body_joint_mujoco_order_in_isaaclab_index = {0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18};
@@ -96,147 +104,143 @@ const std::vector<int> lower_body_joint_mujoco_order_in_mujoco_index = {0, 1, 2,
 const std::vector<int> lower_body_joint_isaaclab_order_in_isaaclab_index = {0, 1, 3, 4, 6, 7, 9, 10, 13, 14, 17, 18};
 const std::vector<int> lower_body_joint_isaaclab_order_in_mujoco_index = {0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11};
 
-// Joint mapping arrays (mujoco order in isaaclab index)
-const std::array<int, 29> isaaclab_to_mujoco = {0,  3,  6,  9,  13, 17, 1,  4,  7,  10, 14, 18, 2,  5, 8,
-                                                11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28};
-// Joint mapping arrays  (isaaclab order in mujoco index)
-const std::array<int, 29> mujoco_to_isaaclab = {0,  6,  12, 1,  7,  13, 2,  8,  14, 3,  9,  15, 22, 4, 10,
-                                                16, 23, 5,  11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28};
+// Joint mapping arrays for the selected deploy robot.
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::array<int, G1_NUM_MOTOR> isaaclab_to_mujoco = {
+    0, 3, 6, 10, 14, 18, 1, 4, 7, 11, 15, 19, 2, 5,
+    8, 12, 16, 20, 22, 24, 26, 9, 13, 17, 21, 23, 25, 27
+};
+const std::array<int, G1_NUM_MOTOR> mujoco_to_isaaclab = {
+    0, 6, 12, 1, 7, 13, 2, 8, 14, 21, 3, 9, 15, 22,
+    4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27
+};
+#else
+const std::array<int, G1_NUM_MOTOR> isaaclab_to_mujoco = {
+    0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8,
+    11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28
+};
+const std::array<int, G1_NUM_MOTOR> mujoco_to_isaaclab = {
+    0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10,
+    16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28
+};
+#endif
 
 // Action scaling parameters
 // Computed using: action_scale = 0.25 * effort_limit / stiffness
 // Based on actuator configurations from IsaacLab G1_CYLINDER_CFG
-const std::array<double, 29> g1_action_scale = {
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // left_hip_pitch_joint （old is 7520_14 new is 7520_22）
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // left_hip_roll_joint
-    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14, // left_hip_yaw_joint
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // left_knee_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_ankle_pitch_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_ankle_roll_joint
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // right_hip_pitch_joint (old is 7520_14 new is 7520_22）
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // right_hip_roll_joint
-    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14, // right_hip_yaw_joint
-    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22, // right_knee_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_ankle_pitch_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_ankle_roll_joint
-    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14, // waist_yaw_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // waist_roll_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // waist_pitch_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_shoulder_pitch_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_shoulder_roll_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_shoulder_yaw_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_elbow_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // left_wrist_roll_joint
-    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010, // left_wrist_pitch_joint
-    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010, // left_wrist_yaw_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_shoulder_pitch_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_shoulder_roll_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_shoulder_yaw_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_elbow_joint
-    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020, // right_wrist_roll_joint
-    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010, // right_wrist_pitch_joint
-    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010, // right_wrist_yaw_joint
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::array<double, G1_NUM_MOTOR> g1_action_scale = {
+    0.25 * 369.0 / 913.0, 0.25 * 369.0 / 906.0, 0.25 * 191.0 / 155.0,
+    0.25 * 369.0 / 561.0, 0.25 * 140.0 / 658.0, 0.25 * 140.0 / 646.0,
+    0.25 * 369.0 / 913.0, 0.25 * 369.0 / 906.0, 0.25 * 191.0 / 155.0,
+    0.25 * 369.0 / 561.0, 0.25 * 140.0 / 658.0, 0.25 * 140.0 / 646.0,
+    0.25 * 102.0 / 367.0, 0.25 * 102.0 / 367.0,
+    0.25 * 66.0 / 103.0, 0.25 * 66.0 / 94.0, 0.25 * 66.0 / 291.0,
+    0.25 * 66.0 / 291.0, 0.25 * 34.0 / 291.0, 0.25 * 11.0 / 213.0,
+    0.25 * 11.0 / 212.0,
+    0.25 * 66.0 / 103.0, 0.25 * 66.0 / 94.0, 0.25 * 66.0 / 291.0,
+    0.25 * 66.0 / 291.0, 0.25 * 34.0 / 291.0, 0.25 * 11.0 / 213.0,
+    0.25 * 11.0 / 212.0,
 };
+#else
+const std::array<double, G1_NUM_MOTOR> g1_action_scale = {
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14,
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14,
+    0.25 * EFFORT_LIMIT_7520_22 / STIFFNESS_7520_22,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_7520_14 / STIFFNESS_7520_14,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010,
+    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_5020 / STIFFNESS_5020,
+    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010,
+    0.25 * EFFORT_LIMIT_4010 / STIFFNESS_4010,
+};
+#endif
 
 // PID control gains - Position gains (Kp)
 // These values are computed based on the stiffness constants above
-const std::array<float, 29> kps = {
-    STIFFNESS_7520_22, // left_hip_pitch_joint (old is 7520_14 new is 7520_22）
-    STIFFNESS_7520_22, // left_hip_roll_joint
-    STIFFNESS_7520_14, // left_hip_yaw_joint
-    STIFFNESS_7520_22, // left_knee_joint
-    2.0 * STIFFNESS_5020, // left_ankle_pitch_joint
-    2.0 * STIFFNESS_5020, // left_ankle_roll_joint
-    STIFFNESS_7520_22, // right_hip_pitch_joint (old is 7520_14 new is 7520_22）
-    STIFFNESS_7520_22, // right_hip_roll_joint
-    STIFFNESS_7520_14, // right_hip_yaw_joint
-    STIFFNESS_7520_22, // right_knee_joint
-    2.0 * STIFFNESS_5020, // right_ankle_pitch_joint
-    2.0 * STIFFNESS_5020, // right_ankle_roll_joint
-    STIFFNESS_7520_14, // waist_yaw_joint
-    2.0 * STIFFNESS_5020, // waist_roll_joint
-    2.0 * STIFFNESS_5020, // waist_pitch_joint
-    STIFFNESS_5020, // left_shoulder_pitch_joint
-    STIFFNESS_5020, // left_shoulder_roll_joint
-    STIFFNESS_5020, // left_shoulder_yaw_joint
-    STIFFNESS_5020, // left_elbow_joint
-    STIFFNESS_5020, // left_wrist_roll_joint
-    STIFFNESS_4010, // left_wrist_pitch_joint
-    STIFFNESS_4010, // left_wrist_yaw_joint
-    STIFFNESS_5020, // right_shoulder_pitch_joint
-    STIFFNESS_5020, // right_shoulder_roll_joint
-    STIFFNESS_5020, // right_shoulder_yaw_joint
-    STIFFNESS_5020, // right_elbow_joint
-    STIFFNESS_5020, // right_wrist_roll_joint
-    STIFFNESS_4010, // right_wrist_pitch_joint
-    STIFFNESS_4010, // right_wrist_yaw_joint
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::array<float, G1_NUM_MOTOR> kps = {
+    913.0f, 906.0f, 155.0f, 561.0f, 658.0f, 646.0f,
+    913.0f, 906.0f, 155.0f, 561.0f, 658.0f, 646.0f,
+    367.0f, 367.0f,
+    103.0f, 94.0f, 291.0f, 291.0f, 291.0f, 213.0f, 212.0f,
+    103.0f, 94.0f, 291.0f, 291.0f, 291.0f, 213.0f, 212.0f,
 };
+#else
+const std::array<float, G1_NUM_MOTOR> kps = {
+    STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14,
+    STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+    STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14,
+    STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+    STIFFNESS_7520_14, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+    STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020,
+    STIFFNESS_5020, STIFFNESS_4010, STIFFNESS_4010,
+    STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020,
+    STIFFNESS_5020, STIFFNESS_4010, STIFFNESS_4010,
+};
+#endif
 
 // PID control gains - Derivative gains (Kd)
 // These values are computed based on the damping constants above
-const std::array<float, 29> kds = {
-    DAMPING_7520_22, // left_hip_pitch_joint (old is 7520_14 new is 7520_22）
-    DAMPING_7520_22, // left_hip_roll_joint
-    DAMPING_7520_14, // left_hip_yaw_joint
-    DAMPING_7520_22, // left_knee_joint
-    2.0 * DAMPING_5020, // left_ankle_pitch_joint
-    2.0 * DAMPING_5020, // left_ankle_roll_joint
-    DAMPING_7520_22, // right_hip_pitch_joint (old is 7520_14 new is 7520_22）
-    DAMPING_7520_22, // right_hip_roll_joint
-    DAMPING_7520_14, // right_hip_yaw_joint
-    DAMPING_7520_22, // right_knee_joint
-    2.0 * DAMPING_5020, // right_ankle_pitch_joint
-    2.0 * DAMPING_5020, // right_ankle_roll_joint
-    DAMPING_7520_14, // waist_yaw_joint
-    2.0 * DAMPING_5020, // waist_roll_joint
-    2.0 * DAMPING_5020, // waist_pitch_joint
-    DAMPING_5020, // left_shoulder_pitch_joint
-    DAMPING_5020, // left_shoulder_roll_joint
-    DAMPING_5020, // left_shoulder_yaw_joint
-    DAMPING_5020, // left_elbow_joint
-    DAMPING_5020, // left_wrist_roll_joint
-    DAMPING_4010, // left_wrist_pitch_joint
-    DAMPING_4010, // left_wrist_yaw_joint
-    DAMPING_5020, // right_shoulder_pitch_joint
-    DAMPING_5020, // right_shoulder_roll_joint
-    DAMPING_5020, // right_shoulder_yaw_joint
-    DAMPING_5020, // right_elbow_joint
-    DAMPING_5020, // right_wrist_roll_joint
-    DAMPING_4010, // right_wrist_pitch_joint
-    DAMPING_4010, // right_wrist_yaw_joint
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::array<float, G1_NUM_MOTOR> kds = {
+    73.0f, 72.0f, 12.0f, 45.0f, 35.0f, 34.0f,
+    73.0f, 72.0f, 12.0f, 45.0f, 35.0f, 34.0f,
+    29.0f, 29.0f,
+    8.0f, 7.0f, 23.0f, 23.0f, 12.0f, 8.0f, 8.0f,
+    8.0f, 7.0f, 23.0f, 23.0f, 12.0f, 8.0f, 8.0f,
 };
+#else
+const std::array<float, G1_NUM_MOTOR> kds = {
+    DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14,
+    DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+    DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14,
+    DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+    DAMPING_7520_14, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+    DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020,
+    DAMPING_5020, DAMPING_4010, DAMPING_4010,
+    DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020,
+    DAMPING_5020, DAMPING_4010, DAMPING_4010,
+};
+#endif
 
 // Default joint angles (standing pose)
-const std::array<double, 29> default_angles = {
-    -0.312, // left_hip_pitch_joint
-    0.0, // left_hip_roll_joint
-    0.0, // left_hip_yaw_joint
-    0.669, // left_knee_joint
-    -0.363, // left_ankle_pitch_joint
-    0.0, // left_ankle_roll_joint
-    -0.312, // right_hip_pitch_joint
-    0.0, // right_hip_roll_joint
-    0.0, // right_hip_yaw_joint
-    0.669, // right_knee_joint
-    -0.363, // right_ankle_pitch_joint
-    0.0, // right_ankle_roll_joint
-    0.0, // waist_yaw_joint
-    0.0, // waist_roll_joint
-    0.0, // waist_pitch_joint
-    0.2, // left_shoulder_pitch_joint
-    0.2, // left_shoulder_roll_joint
-    0.0, // left_shoulder_yaw_joint
-    0.6, // left_elbow_joint
-    0.0, // left_wrist_roll_joint
-    0.0, // left_wrist_pitch_joint
-    0.0, // left_wrist_yaw_joint
-    0.2, // right_shoulder_pitch_joint
-    -0.2, // right_shoulder_roll_joint
-    0.0, // right_shoulder_yaw_joint
-    0.6, // right_elbow_joint
-    0.0, // right_wrist_roll_joint
-    0.0, // right_wrist_pitch_joint
-    0.0 // right_wrist_yaw_joint
+#if defined(DEPLOY_ROBOT_VR_H3_1)
+const std::array<double, G1_NUM_MOTOR> default_angles = {
+    -0.2, 0.0, 0.0, 0.4, -0.2, 0.0,
+    -0.2, 0.0, 0.0, 0.4, -0.2, 0.0,
+    0.0, 0.0,
+    0.0, 0.2, 0.0, 1.0, 0.0, 0.0, 0.0,
+    0.0, -0.2, 0.0, 1.0, 0.0, 0.0, 0.0
 };
+#else
+const std::array<double, G1_NUM_MOTOR> default_angles = {
+    -0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
+    -0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
+    0.0, 0.0, 0.0,
+    0.2, 0.2, 0.0, 0.6, 0.0, 0.0, 0.0,
+    0.2, -0.2, 0.0, 0.6, 0.0, 0.0, 0.0
+};
+#endif
 
 #endif // POLICY_PARAMETERS_HPP

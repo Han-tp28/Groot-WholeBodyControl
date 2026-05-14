@@ -38,6 +38,7 @@
 #include <iomanip>
 #include <filesystem>
 #include <regex>
+#include <algorithm>
 
 #include "../include/fk.hpp"
 #include "../include/policy_parameters.hpp"
@@ -679,19 +680,47 @@ class MotionDataReader {
     bool ReadFromCSV(const std::string& base_directory) {
       std::cout << "Reading motion data from CSV files in: " << base_directory << std::endl;
 
-      // Auto-discover motion folders
+      // Prefer an explicit playlist when present so operators can curate both
+      // the subset and the playback order without renaming motion folders.
       std::vector<std::string> motion_names;
-      try {
-        for (const auto& entry : std::filesystem::directory_iterator(base_directory)) {
-          if (entry.is_directory()) {
-            std::string folder_name = entry.path().filename().string();
-            // Skip if it looks like a summary file or hidden folder
-            if (folder_name[0] != '.' && folder_name != "motion_summary.txt") { motion_names.push_back(folder_name); }
+      const std::filesystem::path playlist_path = std::filesystem::path(base_directory) / "motion_playlist.txt";
+      if (std::filesystem::exists(playlist_path)) {
+        std::ifstream playlist_file(playlist_path);
+        std::string line;
+        while (std::getline(playlist_file, line)) {
+          const auto comment_pos = line.find('#');
+          if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+          }
+          const auto start = line.find_first_not_of(" \t\r\n");
+          if (start == std::string::npos) {
+            continue;
+          }
+          const auto end = line.find_last_not_of(" \t\r\n");
+          std::string motion_name = line.substr(start, end - start + 1);
+          if (std::filesystem::is_directory(std::filesystem::path(base_directory) / motion_name)) {
+            motion_names.push_back(motion_name);
+          } else {
+            std::cout << "⚠ Warning: playlist motion folder not found: " << motion_name << std::endl;
           }
         }
-      } catch (const std::exception& e) {
-        std::cerr << "Error reading directory: " << e.what() << std::endl;
-        return false;
+        std::cout << "Using playlist: " << playlist_path << std::endl;
+      }
+
+      if (motion_names.empty()) {
+        try {
+          for (const auto& entry : std::filesystem::directory_iterator(base_directory)) {
+            if (entry.is_directory()) {
+              std::string folder_name = entry.path().filename().string();
+              // Skip if it looks like a summary file or hidden folder
+              if (folder_name[0] != '.' && folder_name != "motion_summary.txt") { motion_names.push_back(folder_name); }
+            }
+          }
+          std::sort(motion_names.begin(), motion_names.end());
+        } catch (const std::exception& e) {
+          std::cerr << "Error reading directory: " << e.what() << std::endl;
+          return false;
+        }
       }
 
       std::cout << "Found " << motion_names.size() << " motion folders" << std::endl;

@@ -1,0 +1,13 @@
+Metadata for: inj_right_leg_jump_ff_180_R_002__A073
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 711
+
+Data arrays summary:
+  joint_pos: (711, 28)
+  joint_vel: (711, 28)
+  body_pos_w: (711, 1, 3)
+  body_quat_w: (711, 1, 4)

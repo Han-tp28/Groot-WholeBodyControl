@@ -1,8 +1,8 @@
 # @package _global_
 
 defaults:
+  - base
   - /callbacks/im_eval
-  - manager_env/recorders: empty
   - _self_
 
 checkpoint: ???

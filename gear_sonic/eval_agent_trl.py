@@ -58,7 +58,20 @@ from gear_sonic.utils import config_utils, obs_utils
 config_utils.register_rl_resolvers()
 
 
-@hydra.main(config_path="config", config_name="base_eval")
+def _normalize_legacy_eval_cli_overrides() -> None:
+    """Accept older eval commands that used `+` for keys now provided by base config."""
+    legacy_existing_keys = ("checkpoint", "headless")
+    normalized_argv = [sys.argv[0]]
+    for arg in sys.argv[1:]:
+        if arg.startswith("+") and not arg.startswith("++"):
+            key = arg[1:].split("=", 1)[0]
+            if key in legacy_existing_keys:
+                arg = arg[1:]
+        normalized_argv.append(arg)
+    sys.argv = normalized_argv
+
+
+@hydra.main(config_path="config", config_name="base_eval", version_base="1.1")
 def main(override_config: omegaconf.OmegaConf):
 
     hydra_log_path = os.path.join(hydra_config.HydraConfig.get().runtime.output_dir, "eval.log")
@@ -81,10 +94,17 @@ def main(override_config: omegaconf.OmegaConf):
         checkpoint = Path(override_config.checkpoint)
         config_path = checkpoint.parent / "config.yaml"
         if not config_path.exists():
-            config_path = checkpoint.parent.parent / "config.yaml"
+            config_path = checkpoint.parent / ".hydra" / "config.yaml"
             if not config_path.exists():
-                has_config = False
-                logger.error(f"Could not find config path: {config_path}")
+                config_path = checkpoint.parent.parent / "config.yaml"
+                if not config_path.exists():
+                    has_config = False
+                    logger.warning(
+                        "Could not find a training config beside the checkpoint; "
+                        "using the eval/Hydra overrides only. For release checkpoints, "
+                        "pass the matching experiment override, for example "
+                        "+exp=manager/universal_token/all_modes/sonic_release"
+                    )
 
         if has_config:
             logger.info(f"Loading training config file from {config_path}")
@@ -109,7 +129,16 @@ def main(override_config: omegaconf.OmegaConf):
         else:
             config = override_config
 
-        config.experiment_dir = checkpoint.parent
+        with omegaconf.open_dict(config):
+            config.experiment_dir = str(checkpoint.parent)
+            config.output_dir = str(checkpoint.parent / "output")
+
+        if "manager_env" not in config:
+            raise ValueError(
+                "No training config was found next to the checkpoint, and no experiment config "
+                "was provided. Re-run with the matching experiment override, for example: "
+                "+exp=manager/universal_token/all_modes/sonic_release"
+            )
     elif override_config.eval_overrides is not None:
         config = override_config.copy()
         eval_overrides = omegaconf.OmegaConf.to_container(config.eval_overrides, resolve=True)
@@ -661,4 +690,5 @@ def main(override_config: omegaconf.OmegaConf):
 
 
 if __name__ == "__main__":
+    _normalize_legacy_eval_cli_overrides()
     main()

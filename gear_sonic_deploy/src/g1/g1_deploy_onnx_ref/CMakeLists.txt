@@ -1,5 +1,12 @@
 set(EXECUTABLE_NAME g1_deploy_onnx_ref)
 
+set(DEPLOY_ROBOT "g1" CACHE STRING "Deploy robot target: g1 or vr_h3_1")
+set_property(CACHE DEPLOY_ROBOT PROPERTY STRINGS g1 vr_h3_1)
+if(NOT DEPLOY_ROBOT STREQUAL "g1" AND NOT DEPLOY_ROBOT STREQUAL "vr_h3_1")
+  message(FATAL_ERROR "DEPLOY_ROBOT must be 'g1' or 'vr_h3_1', got '${DEPLOY_ROBOT}'")
+endif()
+message(STATUS "Deploy robot target: ${DEPLOY_ROBOT}")
+
 # ROS2 discovery can be controlled via env var HAS_ROS2:
 # - 1: try ROS2 (find_package QUIET)
 # - 0 or unset: disable ROS2 entirely (skip find_package)
@@ -186,6 +193,11 @@ set(EXE_INCLUDES
 # Build a static library, used by both the main executable and the tests: 
 add_library(g1_deploy_shared STATIC ${PROJECT_SRCS})
 target_include_directories(g1_deploy_shared PUBLIC ${EXE_INCLUDES})
+if(DEPLOY_ROBOT STREQUAL "vr_h3_1")
+  target_compile_definitions(g1_deploy_shared PUBLIC DEPLOY_ROBOT_VR_H3_1=1)
+else()
+  target_compile_definitions(g1_deploy_shared PUBLIC DEPLOY_ROBOT_G1=1)
+endif()
 
 # List of libs to link for both the main executable and the tests
 set(EXE_LIBS
@@ -203,6 +215,11 @@ set(EXE_LIBS
 # build the main executable:
 add_executable(${EXECUTABLE_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src/g1_deploy_onnx_ref.cpp)
 target_include_directories(${EXECUTABLE_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${PROJECT_SOURCE_DIR}/src)
+if(DEPLOY_ROBOT STREQUAL "vr_h3_1")
+  target_compile_definitions(${EXECUTABLE_NAME} PRIVATE DEPLOY_ROBOT_VR_H3_1=1)
+else()
+  target_compile_definitions(${EXECUTABLE_NAME} PRIVATE DEPLOY_ROBOT_G1=1)
+endif()
 
 target_link_directories(${EXECUTABLE_NAME} PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(

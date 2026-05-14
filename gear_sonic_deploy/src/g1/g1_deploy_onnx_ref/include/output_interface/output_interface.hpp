@@ -167,20 +167,20 @@ protected:
                                   current_frame < static_cast<int>(current_motion->timesteps);
 
         // Independent capability checks for the current motion
-        bool has_joint_data = motion_frame_valid && current_motion->GetNumJoints() >= 29;
+        bool has_joint_data = motion_frame_valid && current_motion->GetNumJoints() >= G1_NUM_MOTOR;
         bool has_body_positions = motion_frame_valid && current_motion->GetNumBodies() >= 1;
         bool has_body_quaternions = motion_frame_valid && current_motion->GetNumBodyQuaternions() >= 1;
 
         // ---- Initialise target arrays with safe defaults ----
-        std::array<double, 29> body_q_target;
+        std::array<double, G1_NUM_MOTOR> body_q_target;
         body_q_target.fill(0.0);
         std::array<double, 3> base_trans_target = {0.0, 0.0, 0.0};
         std::array<double, 4> base_quat_target = {1.0, 0.0, 0.0, 0.0};  // Identity quaternion
         
         // ---- Populate measured values from robot state (always available) ----
         // Remap from IsaacLab joint ordering to MuJoCo ordering and add default offsets.
-        std::array<double, 29> body_q_measured;
-        for (int i = 0; i < 29; i++) {
+        std::array<double, G1_NUM_MOTOR> body_q_measured;
+        for (int i = 0; i < G1_NUM_MOTOR; i++) {
           body_q_measured[i] = state.body_q[isaaclab_to_mujoco[i]] + default_angles[i];
         }
         std::array<double, 3> base_trans_measured = {0.0, -1.0, 0.793};  // Fixed default position
@@ -188,7 +188,7 @@ protected:
 
         // Populate joint targets if available
         if (has_joint_data) {
-          for (int i = 0; i < 29; i++) {
+          for (int i = 0; i < G1_NUM_MOTOR; i++) {
             body_q_target[i] = current_motion->JointPositions(current_frame)[isaaclab_to_mujoco[i]];
           }
         }
@@ -293,4 +293,3 @@ protected:
 };
 
 #endif // OUTPUT_INTERFACE_HPP
-

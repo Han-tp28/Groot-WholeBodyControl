@@ -421,10 +421,10 @@ private:
         // Pack body_q (dynamic size) - recover original values (add offset, convert to MuJoCo order)
         pk.pack("body_q");
         pk.pack_array(state.body_q.size());
-        if (state.body_q.size() == 29) {
+        if (state.body_q.size() == G1_NUM_MOTOR) {
             // Create temporary array for MuJoCo-ordered values
-            std::array<double, 29> body_q_mujoco;
-            for (size_t i = 0; i < 29; ++i) {
+            std::array<double, G1_NUM_MOTOR> body_q_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i) {
                 // Add back the offset (body_q is in IsaacLab order, default_angles is in MuJoCo order)
                 body_q_mujoco[i] = state.body_q[isaaclab_to_mujoco[i]] + default_angles[i];
             }
@@ -442,10 +442,10 @@ private:
         // Pack body_dq (dynamic size) - convert to MuJoCo order (no offset for velocities)
         pk.pack("body_dq");
         pk.pack_array(state.body_dq.size());
-        if (state.body_dq.size() == 29) {
+        if (state.body_dq.size() == G1_NUM_MOTOR) {
             // Create temporary array for MuJoCo-ordered values
-            std::array<double, 29> body_dq_mujoco;
-            for (size_t i = 0; i < 29; ++i) {
+            std::array<double, G1_NUM_MOTOR> body_dq_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i) {
                 // Convert to MuJoCo order (velocities don't have offset)
                 body_dq_mujoco[i] = state.body_dq[isaaclab_to_mujoco[i]];
             }
@@ -463,10 +463,10 @@ private:
         // Pack last_action (dynamic size) - convert to MuJoCo order
         pk.pack("last_action");
         pk.pack_array(state.last_action.size());
-        if (state.last_action.size() == 29) {
+        if (state.last_action.size() == G1_NUM_MOTOR) {
             // Create temporary array for MuJoCo-ordered values
-            std::array<double, 29> last_action_mujoco;
-            for (size_t i = 0; i < 29; ++i) {
+            std::array<double, G1_NUM_MOTOR> last_action_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i) {
                 // Convert to MuJoCo order (actions are in IsaacLab order in logger)
                 last_action_mujoco[i] = state.last_action[isaaclab_to_mujoco[i]] * g1_action_scale[i] + default_angles[i];
             }
@@ -558,4 +558,3 @@ private:
 #endif // HAS_ROS2
 
 #endif // ROS2_OUTPUT_HANDLER_HPP
-

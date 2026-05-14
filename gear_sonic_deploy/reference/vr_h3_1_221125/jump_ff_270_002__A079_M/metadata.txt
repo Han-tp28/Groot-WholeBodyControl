@@ -1,0 +1,13 @@
+Metadata for: jump_ff_270_002__A079_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 291
+
+Data arrays summary:
+  joint_pos: (291, 28)
+  joint_vel: (291, 28)
+  body_pos_w: (291, 1, 3)
+  body_quat_w: (291, 1, 4)

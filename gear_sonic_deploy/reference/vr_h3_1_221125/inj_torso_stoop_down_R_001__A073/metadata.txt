@@ -1,0 +1,13 @@
+Metadata for: inj_torso_stoop_down_R_001__A073
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 1735
+
+Data arrays summary:
+  joint_pos: (1735, 28)
+  joint_vel: (1735, 28)
+  body_pos_w: (1735, 1, 3)
+  body_quat_w: (1735, 1, 4)

@@ -7,13 +7,13 @@ set -e
 # This script handles the complete setup and deployment process for g1_deploy
 # Following the steps from the README.md
 #
-# Usage: ./deploy.sh [sim|real|<interface_name>|<ip_address>]
+# Usage: ./deploy.sh [--robot g1|vr_h3_1] [sim|real|<interface_name>|<ip_address>]
 #   sim   - Use loopback interface for simulation (MuJoCo)
 #   real  - Auto-detect robot network interface (192.168.123.x)
 #   <interface_name> - Use specific interface (e.g., enP8p1s0, eth0)
 #   <ip_address> - Use interface with specific IP
 #
-# Default: real
+# Default: sim
 # ============================================================================
 
 # Colors for output
@@ -211,6 +211,7 @@ show_usage() {
     echo "  --input-type TYPE       Set the input type (default: zmq_manager)"
     echo "  --output-type TYPE      Set the output type (default: ros2)"
     echo "  --zmq-host HOST         Set the ZMQ host (default: localhost)"
+    echo "  --robot ROBOT           Robot target: g1 or vr_h3_1 (default: g1)"
     echo ""
     echo "Interface modes:"
     echo "  sim              Use loopback interface for simulation (MuJoCo)"
@@ -218,7 +219,7 @@ show_usage() {
     echo "  <interface>      Use specific interface (e.g., enP8p1s0, eth0)"
     echo "  <ip_address>     Use interface by IP address"
     echo ""
-    echo "Default: real"
+    echo "Default: sim"
     echo ""
     echo "Examples:"
     echo "  $0 sim           # Run in simulation mode"
@@ -232,25 +233,35 @@ show_usage() {
 }
 
 # Default interface mode
-INTERFACE_MODE="real"
+INTERFACE_MODE="sim"
 
 # Default configuration values (can be overridden by command line)
-CHECKPOINT_DEFAULT="policy/release/model"
-OBS_CONFIG_DEFAULT="policy/release/observation_config.yaml"
+CHECKPOINT_DEFAULT_G1="policy/release/model"
+OBS_CONFIG_DEFAULT_G1="policy/release/observation_config.yaml"
+MOTION_DATA_DEFAULT_G1="reference/example/"
+
+CHECKPOINT_DEFAULT_VR_H3_1="../data/exported/model_step_001000"
+OBS_CONFIG_DEFAULT_VR_H3_1="policy/release/observation_config_vr_h3_1.yaml"
+MOTION_DATA_DEFAULT_VR_H3_1="reference/vr_h3_1_221125/"
+
 PLANNER_DEFAULT="planner/target_vel/V2/planner_sonic.onnx"
-MOTION_DATA_DEFAULT="reference/example/"
 INPUT_TYPE_DEFAULT="manager"
 OUTPUT_TYPE_DEFAULT="all"
 ZMQ_HOST_DEFAULT="localhost"
+ROBOT_DEFAULT="g1"
 
 # Initialize with defaults (will be set after parsing)
-CHECKPOINT="$CHECKPOINT_DEFAULT"
-OBS_CONFIG="$OBS_CONFIG_DEFAULT"
+CHECKPOINT="$CHECKPOINT_DEFAULT_G1"
+OBS_CONFIG="$OBS_CONFIG_DEFAULT_G1"
 PLANNER="$PLANNER_DEFAULT"
-MOTION_DATA="$MOTION_DATA_DEFAULT"
+MOTION_DATA="$MOTION_DATA_DEFAULT_G1"
 INPUT_TYPE="$INPUT_TYPE_DEFAULT"
 OUTPUT_TYPE="$OUTPUT_TYPE_DEFAULT"
 ZMQ_HOST="$ZMQ_HOST_DEFAULT"
+ROBOT="$ROBOT_DEFAULT"
+CHECKPOINT_SET=false
+OBS_CONFIG_SET=false
+MOTION_DATA_SET=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -265,6 +276,7 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             CHECKPOINT="$2"
+            CHECKPOINT_SET=true
             shift 2
             ;;
         --obs-config)
@@ -273,6 +285,7 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             OBS_CONFIG="$2"
+            OBS_CONFIG_SET=true
             shift 2
             ;;
         --planner)
@@ -289,6 +302,7 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             MOTION_DATA="$2"
+            MOTION_DATA_SET=true
             shift 2
             ;;
         --input-type)
@@ -315,6 +329,14 @@ while [[ $# -gt 0 ]]; do
             ZMQ_HOST="$2"
             shift 2
             ;;
+        --robot)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Error: --robot requires a robot name${NC}" >&2
+                exit 1
+            fi
+            ROBOT="$2"
+            shift 2
+            ;;
         sim|real)
             INTERFACE_MODE="$1"
             shift
@@ -327,13 +349,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$ROBOT" == "g1" ]]; then
+    if [[ "$CHECKPOINT_SET" == false ]]; then CHECKPOINT="$CHECKPOINT_DEFAULT_G1"; fi
+    if [[ "$OBS_CONFIG_SET" == false ]]; then OBS_CONFIG="$OBS_CONFIG_DEFAULT_G1"; fi
+    if [[ "$MOTION_DATA_SET" == false ]]; then MOTION_DATA="$MOTION_DATA_DEFAULT_G1"; fi
+elif [[ "$ROBOT" == "vr_h3_1" ]]; then
+    if [[ "$CHECKPOINT_SET" == false ]]; then CHECKPOINT="$CHECKPOINT_DEFAULT_VR_H3_1"; fi
+    if [[ "$OBS_CONFIG_SET" == false ]]; then OBS_CONFIG="$OBS_CONFIG_DEFAULT_VR_H3_1"; fi
+    if [[ "$MOTION_DATA_SET" == false ]]; then MOTION_DATA="$MOTION_DATA_DEFAULT_VR_H3_1"; fi
+fi
+
 # ============================================================================
 # Display Header
 # ============================================================================
 
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════════════════════════════════╗"
-echo "║                         G1 DEPLOY LAUNCHER                           ║"
+echo "║                         ROBOT DEPLOY LAUNCHER                           ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -343,6 +375,17 @@ echo -e "${NC}"
 
 echo -e "${BLUE}[Interface Resolution]${NC}"
 echo "Requested mode: $INTERFACE_MODE"
+
+if [[ "$ROBOT" != "g1" && "$ROBOT" != "vr_h3_1" ]]; then
+    echo -e "${RED}❌ Unsupported deploy robot: $ROBOT${NC}" >&2
+    echo "   Supported values: g1, vr_h3_1." >&2
+    exit 1
+fi
+
+if [[ "$ROBOT" == "vr_h3_1" && "$INTERFACE_MODE" == "real" ]]; then
+    echo -e "${YELLOW}⚠️  VR_H3_1 real-robot deploy is experimental in this tree.${NC}" >&2
+    echo "   Start with sim first, and verify joint mapping/gains before connecting hardware." >&2
+fi
 
 resolve_interface "$INTERFACE_MODE"
 
@@ -448,15 +491,6 @@ echo ""
 
 echo -e "${BLUE}[Step 2/4]${NC} Checking/Installing dependencies..."
 
-# Check if just is installed
-if ! command -v just &> /dev/null; then
-    echo "Installing dependencies (just not found)..."
-    chmod +x scripts/install_deps.sh
-    ./scripts/install_deps.sh
-else
-    echo -e "${GREEN}✅ just is already installed${NC}"
-fi
-
 # Check if other essential tools are available
 DEPS_OK=true
 for cmd in cmake clang git; do
@@ -491,7 +525,8 @@ set -e  # Re-enable exit on error
 
 # Always build to ensure we have the latest version
 echo "Building the project..."
-just build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DDEPLOY_ROBOT="$ROBOT"
+cmake --build build -j"$(nproc)"
 
 echo ""
 
@@ -506,6 +541,7 @@ echo -e "${CYAN}                         DEPLOYMENT CONFIGURATION               
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Environment:        ${GREEN}$ENV_TYPE${NC}"
+echo -e "  Robot:              ${GREEN}$ROBOT${NC}"
 echo -e "  Network Interface:  ${GREEN}$TARGET${NC}"
 echo -e "  Decoder Model:      ${GREEN}$CHECKPOINT_DECODER${NC}"
 echo -e "  Encoder Model:      ${GREEN}$CHECKPOINT_ENCODER${NC}"
@@ -523,7 +559,7 @@ echo -e "${CYAN}═════════════════════�
 echo ""
 echo -e "${YELLOW}The following command will be executed:${NC}"
 echo ""
-echo -e "${BLUE}just run g1_deploy_onnx_ref $TARGET $CHECKPOINT_DECODER $MOTION_DATA \\${NC}"
+echo -e "${BLUE}./target/release/g1_deploy_onnx_ref $TARGET $CHECKPOINT_DECODER $MOTION_DATA \\${NC}"
 echo -e "${BLUE}    --obs-config $OBS_CONFIG \\${NC}"
 echo -e "${BLUE}    --encoder-file $CHECKPOINT_ENCODER \\${NC}"
 echo -e "${BLUE}    --planner-file $PLANNER \\${NC}"
@@ -553,7 +589,7 @@ if [[ "$confirm" =~ ^[Yy]$ ]] || [[ -z "$confirm" ]]; then
     
     # Build the command with optional extra args
     if [[ -n "$EXTRA_ARGS" ]]; then
-        just run g1_deploy_onnx_ref "$TARGET" "$CHECKPOINT_DECODER" "$MOTION_DATA" \
+        ./target/release/g1_deploy_onnx_ref "$TARGET" "$CHECKPOINT_DECODER" "$MOTION_DATA" \
             --obs-config "$OBS_CONFIG" \
             --encoder-file "$CHECKPOINT_ENCODER" \
             --planner-file "$PLANNER" \
@@ -562,7 +598,7 @@ if [[ "$confirm" =~ ^[Yy]$ ]] || [[ -z "$confirm" ]]; then
             --zmq-host "$ZMQ_HOST" \
             $EXTRA_ARGS
     else
-        just run g1_deploy_onnx_ref "$TARGET" "$CHECKPOINT_DECODER" "$MOTION_DATA" \
+        ./target/release/g1_deploy_onnx_ref "$TARGET" "$CHECKPOINT_DECODER" "$MOTION_DATA" \
             --obs-config "$OBS_CONFIG" \
             --encoder-file "$CHECKPOINT_ENCODER" \
             --planner-file "$PLANNER" \

@@ -1,0 +1,13 @@
+Metadata for: high_jump_R_001__A371_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 364
+
+Data arrays summary:
+  joint_pos: (364, 28)
+  joint_vel: (364, 28)
+  body_pos_w: (364, 1, 3)
+  body_quat_w: (364, 1, 4)

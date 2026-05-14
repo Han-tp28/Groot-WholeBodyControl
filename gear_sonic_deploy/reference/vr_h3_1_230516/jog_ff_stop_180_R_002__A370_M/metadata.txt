@@ -1,0 +1,13 @@
+Metadata for: jog_ff_stop_180_R_002__A370_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 289
+
+Data arrays summary:
+  joint_pos: (289, 28)
+  joint_vel: (289, 28)
+  body_pos_w: (289, 1, 3)
+  body_quat_w: (289, 1, 4)

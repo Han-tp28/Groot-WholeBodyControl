@@ -315,9 +315,9 @@ private:
         // body_q: IsaacLab -> MuJoCo order, add default-angle offset
         pk.pack("body_q");
         pk.pack_array(state.body_q.size());
-        if (state.body_q.size() == 29) {
-            std::array<double, 29> body_q_mujoco;
-            for (size_t i = 0; i < 29; ++i)
+        if (state.body_q.size() == G1_NUM_MOTOR) {
+            std::array<double, G1_NUM_MOTOR> body_q_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i)
                 body_q_mujoco[i] = state.body_q[isaaclab_to_mujoco[i]] + default_angles[i];
             for (const auto& val : body_q_mujoco) pk.pack(val);
         } else {
@@ -327,9 +327,9 @@ private:
         // body_dq: IsaacLab -> MuJoCo order (no offset for velocities)
         pk.pack("body_dq");
         pk.pack_array(state.body_dq.size());
-        if (state.body_dq.size() == 29) {
-            std::array<double, 29> body_dq_mujoco;
-            for (size_t i = 0; i < 29; ++i)
+        if (state.body_dq.size() == G1_NUM_MOTOR) {
+            std::array<double, G1_NUM_MOTOR> body_dq_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i)
                 body_dq_mujoco[i] = state.body_dq[isaaclab_to_mujoco[i]];
             for (const auto& val : body_dq_mujoco) pk.pack(val);
         } else {
@@ -339,9 +339,9 @@ private:
         // last_action: IsaacLab -> MuJoCo order, scale + default-angle offset
         pk.pack("last_action");
         pk.pack_array(state.last_action.size());
-        if (state.last_action.size() == 29) {
-            std::array<double, 29> last_action_mujoco;
-            for (size_t i = 0; i < 29; ++i)
+        if (state.last_action.size() == G1_NUM_MOTOR) {
+            std::array<double, G1_NUM_MOTOR> last_action_mujoco;
+            for (size_t i = 0; i < G1_NUM_MOTOR; ++i)
                 last_action_mujoco[i] = state.last_action[isaaclab_to_mujoco[i]] * g1_action_scale[i] + default_angles[i];
             for (const auto& val : last_action_mujoco) pk.pack(val);
         } else {

@@ -1,0 +1,13 @@
+Metadata for: jump_ff_180_R_003__A073_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 274
+
+Data arrays summary:
+  joint_pos: (274, 28)
+  joint_vel: (274, 28)
+  body_pos_w: (274, 1, 3)
+  body_quat_w: (274, 1, 4)

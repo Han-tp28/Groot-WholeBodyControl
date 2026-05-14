@@ -1,0 +1,13 @@
+Metadata for: come_down_50cm_box_R_001__A370
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 473
+
+Data arrays summary:
+  joint_pos: (473, 28)
+  joint_vel: (473, 28)
+  body_pos_w: (473, 1, 3)
+  body_quat_w: (473, 1, 4)

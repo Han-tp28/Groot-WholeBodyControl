@@ -1,0 +1,13 @@
+Metadata for: dancing_routine_V002_003__A370_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 2021
+
+Data arrays summary:
+  joint_pos: (2021, 28)
+  joint_vel: (2021, 28)
+  body_pos_w: (2021, 1, 3)
+  body_quat_w: (2021, 1, 4)

@@ -1,0 +1,13 @@
+Metadata for: dancing_routine_V002_003__A369_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 1968
+
+Data arrays summary:
+  joint_pos: (1968, 28)
+  joint_vel: (1968, 28)
+  body_pos_w: (1968, 1, 3)
+  body_quat_w: (1968, 1, 4)

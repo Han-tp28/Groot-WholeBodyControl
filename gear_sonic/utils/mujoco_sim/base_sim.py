@@ -150,8 +150,14 @@ class DefaultEnv:
         self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
         self.mj_data = mujoco.MjData(self.mj_model)
         self.mj_model.opt.timestep = self.sim_dt
-        self.torso_index = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, "torso_link")
-        self.root_body = "pelvis"
+        self.root_body = self.config.get("ROOT_BODY", "pelvis")
+        self.secondary_imu_body = self.config.get("SECONDARY_IMU_BODY", "torso_link")
+        self.head_pose_body = self.config.get("HEAD_POSE_BODY", self.secondary_imu_body)
+        self.torso_index = mujoco.mj_name2id(
+            self.mj_model, mujoco.mjtObj.mjOBJ_BODY, self.secondary_imu_body
+        )
+        if self.torso_index == -1:
+            raise ValueError(f"Secondary IMU body not found: {self.secondary_imu_body}")
         self.root_body_id = self.mj_model.body(self.root_body).id
 
         self.joint_class_map = self._get_dof_indices_by_class()
@@ -159,9 +165,13 @@ class DefaultEnv:
         self.perform_sysid_search = self.config.get("perform_sysid_search", False)
 
         # Check for static root link (fixed base)
-        self.use_floating_root_link = "floating_base_joint" in [
-            self.mj_model.joint(i).name for i in range(self.mj_model.njnt)
-        ]
+        floating_root_joint_names = self.config.get(
+            "FLOATING_ROOT_JOINT_NAMES", ["floating_base_joint"]
+        )
+        model_joint_names = [self.mj_model.joint(i).name for i in range(self.mj_model.njnt)]
+        self.use_floating_root_link = any(
+            name in model_joint_names for name in floating_root_joint_names
+        )
         self.use_constrained_root_link = "constrained_base_joint" in [
             self.mj_model.joint(i).name for i in range(self.mj_model.njnt)
         ]
@@ -184,7 +194,10 @@ class DefaultEnv:
         # Enable the elastic band
         if self.config["ENABLE_ELASTIC_BAND"] and self.use_floating_root_link:
             self.elastic_band = ElasticBand()
-            if "g1" in self.config["ROBOT_TYPE"]:
+            elastic_band_body = self.config.get("ELASTIC_BAND_BODY")
+            if elastic_band_body:
+                self.band_attached_link = self.mj_model.body(elastic_band_body).id
+            elif "g1" in self.config["ROBOT_TYPE"]:
                 if self.config["enable_waist"]:
                     self.band_attached_link = self.mj_model.body("pelvis").id
                 else:
@@ -198,7 +211,7 @@ class DefaultEnv:
                 self.viewer = mujoco.viewer.launch_passive(
                     self.mj_model,
                     self.mj_data,
-                    key_callback=self.elastic_band.MujuocoKeyCallback,
+                    key_callback=self._mujoco_key_callback,
                     show_left_ui=False,
                     show_right_ui=False,
                 )
@@ -206,9 +219,14 @@ class DefaultEnv:
                 mujoco.mj_forward(self.mj_model, self.mj_data)
                 self.viewer = None
         else:
+            self.elastic_band = None
             if self.onscreen:
                 self.viewer = mujoco.viewer.launch_passive(
-                    self.mj_model, self.mj_data, show_left_ui=False, show_right_ui=False
+                    self.mj_model,
+                    self.mj_data,
+                    key_callback=self._mujoco_key_callback,
+                    show_left_ui=False,
+                    show_right_ui=False,
                 )
             else:
                 mujoco.mj_forward(self.mj_model, self.mj_data)
@@ -246,6 +264,26 @@ class DefaultEnv:
         self.body_joint_index = np.array(self.body_joint_index)
         self.left_hand_index = np.array(self.left_hand_index)
         self.right_hand_index = np.array(self.right_hand_index)
+        self.reset()
+
+    def _mujoco_key_callback(self, key):
+        import glfw
+
+        if self.elastic_band:
+            self.elastic_band.MujuocoKeyCallback(key)
+
+        if key == glfw.KEY_BACKSPACE:
+            self.reset()
+        elif key == glfw.KEY_V:
+            self.update_viewer_camera()
+        elif key == glfw.KEY_UP:
+            self.apply_perturbation("up")
+        elif key == glfw.KEY_DOWN:
+            self.apply_perturbation("down")
+        elif key == glfw.KEY_LEFT:
+            self.apply_perturbation("left")
+        elif key == glfw.KEY_RIGHT:
+            self.apply_perturbation("right")
 
     def init_renderers(self):
         self.renderers = {}
@@ -288,9 +326,9 @@ class DefaultEnv:
         return body_torques
 
     def get_head_pose(self) -> np.ndarray:
-        root_pos = self.mj_data.body("torso_link").xpos.copy()
+        root_pos = self.mj_data.body(self.head_pose_body).xpos.copy()
         # Reorder quaternion from MuJoCo [w,x,y,z] to scipy [x,y,z,w]
-        root_quat = self.mj_data.body("torso_link").xquat.copy()[[1, 2, 3, 0]]
+        root_quat = self.mj_data.body(self.head_pose_body).xquat.copy()[[1, 2, 3, 0]]
         head_pos = root_pos + Rotation.from_quat(root_quat).apply(np.array([0.0, 0.0, -0.044]))
         return np.concatenate((head_pos, root_quat))
 
@@ -359,7 +397,7 @@ class DefaultEnv:
         obs["secondary_imu_quat"] = self.mj_data.xquat[self.torso_index]
 
         pose = np.zeros(13)
-        torso_link = self.mj_model.body("torso_link").id
+        torso_link = self.mj_model.body(self.secondary_imu_body).id
         # mj_objectVelocity returns [ang_vel, lin_vel]; swap to [lin_vel, ang_vel]
         mujoco.mj_objectVelocity(
             self.mj_model, self.mj_data, mujoco.mjtObj.mjOBJ_BODY, torso_link, pose[7:13], 1
@@ -525,6 +563,19 @@ class DefaultEnv:
 
     def reset(self):
         mujoco.mj_resetData(self.mj_model, self.mj_data)
+        if self.use_floating_root_link:
+            self.mj_data.qpos[:3] = np.array([0.0, 0.0, 0.85])
+            self.mj_data.qpos[3:7] = np.array([1.0, 0.0, 0.0, 0.0])
+            self.mj_data.qvel[:6] = 0.0
+        if hasattr(self, "body_joint_index"):
+            joint_qpos_indices = self.body_joint_index + self.qpos_offset - 1
+            self.mj_data.qpos[joint_qpos_indices] = np.asarray(
+                self.robot.DEFAULT_DOF_ANGLES, dtype=np.float64
+            )
+            joint_qvel_indices = self.body_joint_index + self.qvel_offset - 1
+            self.mj_data.qvel[joint_qvel_indices] = 0.0
+        self.mj_data.ctrl[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
 
 
 class BaseSimulator:

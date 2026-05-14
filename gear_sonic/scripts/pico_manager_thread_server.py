@@ -96,6 +96,23 @@ except ImportError:
     print("Warning: get_g1_key_frame_poses not available (pyvista may not be installed).")
     get_g1_key_frame_poses = None
 
+SUPPORTED_ROBOTS = ("g1", "vr_h3_1")
+
+
+def instantiate_robot_model_for_teleop(robot: str):
+    """Instantiate the FK robot model used by VR 3-point calibration/visualization."""
+    if robot == "g1":
+        from gear_sonic.data.robot_model.instantiation.g1 import instantiate_g1_robot_model
+
+        return instantiate_g1_robot_model()
+    if robot == "vr_h3_1":
+        from gear_sonic.data.robot_model.instantiation.vr_h3_1 import (
+            instantiate_vr_h3_1_robot_model,
+        )
+
+        return instantiate_vr_h3_1_robot_model(waist_location="lower_and_upper_body")
+    raise ValueError(f"Unsupported robot: {robot}. Expected one of: {SUPPORTED_ROBOTS}")
+
 
 class LocomotionMode(IntEnum):
     """Locomotion mode enum for robot movement."""
@@ -820,6 +837,7 @@ def _pose_stream_common(
     with_g1_robot: bool = True,
     enable_waist_tracking: bool = False,
     enable_smpl_vis: bool = False,
+    robot: str = "g1",
 ):
     """Shared pose streaming loop used by run_pico."""
     if xrt is None:
@@ -838,6 +856,7 @@ def _pose_stream_common(
         enable_waist_tracking=enable_waist_tracking,
         enable_smpl_vis=enable_smpl_vis,
         log_prefix=log_prefix,
+        robot=robot,
     )
 
     streamer = PoseStreamer(
@@ -892,6 +911,7 @@ class ThreePointPose:
         enable_smpl_vis: bool = False,
         log_prefix: str = "ThreePointPose",
         robot_model=None,
+        robot: str = "g1",
     ):
         """
         Initialize 3-point pose processor.
@@ -906,6 +926,7 @@ class ThreePointPose:
                         Used for FK-based calibration (no display required).
         """
         self.log_prefix = log_prefix
+        self.robot = robot
         self.with_g1_robot = with_g1_robot
         self.enable_waist_tracking = enable_waist_tracking
         self.enable_smpl_vis = enable_smpl_vis
@@ -913,12 +934,9 @@ class ThreePointPose:
         # Robot model for FK-based calibration (headless, no display required)
         self._robot_model = robot_model
         if self._robot_model is None:
-            from gear_sonic.data.robot_model.instantiation.g1 import (
-                instantiate_g1_robot_model,
-            )
-
-            self._robot_model = instantiate_g1_robot_model()
-            print(f"[{log_prefix}] Robot model loaded for FK calibration")
+            self._robot_model = instantiate_robot_model_for_teleop(robot)
+            print(f"[{log_prefix}] {robot} robot model loaded for FK calibration")
+        self._num_body_actuated_joints = len(self._robot_model.get_body_actuated_joint_indices())
 
         # Optional visualization (requires display + PyVista)
         self.vr3pt_visualizer = None
@@ -928,16 +946,32 @@ class ThreePointPose:
                     "VR3PtPoseVisualizer could not be imported but --vis_vr3pt was requested. "
                     "Ensure pyvista is installed: pip install pyvista"
                 )
-            self.vr3pt_visualizer = VR3PtPoseVisualizer(
-                axis_length=0.08,
-                ball_radius=0.015,
-                with_g1_robot=with_g1_robot,
-                robot_model=self._robot_model,
-                enable_waist_tracking=enable_waist_tracking,
-                enable_smpl_vis=enable_smpl_vis,
-            )
+            try:
+                self.vr3pt_visualizer = VR3PtPoseVisualizer(
+                    axis_length=0.08,
+                    ball_radius=0.015,
+                    with_g1_robot=with_g1_robot,
+                    robot_model=self._robot_model,
+                    enable_waist_tracking=enable_waist_tracking,
+                    enable_smpl_vis=enable_smpl_vis,
+                )
+            except RuntimeError as e:
+                if not with_g1_robot:
+                    raise
+                print(
+                    f"[{log_prefix}] Warning: robot mesh visualization disabled: {e}"
+                )
+                self.vr3pt_visualizer = VR3PtPoseVisualizer(
+                    axis_length=0.08,
+                    ball_radius=0.015,
+                    with_g1_robot=False,
+                    robot_model=self._robot_model,
+                    enable_waist_tracking=False,
+                    enable_smpl_vis=enable_smpl_vis,
+                )
+                with_g1_robot = False
             self.vr3pt_visualizer.create_realtime_plotter(interactive=True)
-            g1_str = " with G1 robot" if with_g1_robot else ""
+            g1_str = f" with {robot} robot" if with_g1_robot else ""
             waist_str = " + waist tracking" if enable_waist_tracking else ""
             smpl_str = " + SMPL body" if enable_smpl_vis else ""
             print(f"[{log_prefix}] VR 3pt pose visualization enabled{g1_str}{waist_str}{smpl_str}")
@@ -1011,7 +1045,7 @@ class ThreePointPose:
         Operator should be in zero-reference pose when calling this."""
         try:
             vr_3pt_pose_raw = _process_3pt_pose(body_poses_np)
-            self._override_robot_q = np.zeros(29, dtype=np.float64)
+            self._override_robot_q = np.zeros(self._num_body_actuated_joints, dtype=np.float64)
             self._capture_calibration(vr_3pt_pose_raw)
             print(f"[{self.log_prefix}] Calibration completed (zero-pose reference)")
             return True
@@ -1044,7 +1078,7 @@ class ThreePointPose:
         if self._robot_model is None:
             raise RuntimeError(
                 "Robot model is required for calibration but was not loaded. "
-                "Ensure the G1 robot model and URDF are available."
+                f"Ensure the {self.robot} robot model and URDF are available."
             )
         if get_g1_key_frame_poses is None:
             raise RuntimeError(
@@ -1052,10 +1086,15 @@ class ThreePointPose:
                 "Ensure gear_sonic.utils.teleop.vis.vr3pt_pose_visualizer is available."
             )
 
-        # Convert 29-DOF override to full model config if needed
+        # Convert measured actuated joints to a full model config if needed.
         if self._override_robot_q is not None:
+            if len(self._override_robot_q) != self._num_body_actuated_joints:
+                raise RuntimeError(
+                    f"Measured body_q length {len(self._override_robot_q)} does not match "
+                    f"{self.robot} actuated body DOFs ({self._num_body_actuated_joints})."
+                )
             robot_q = self._robot_model.get_configuration_from_actuated_joints(
-                body_actuated_joint_values=self._override_robot_q[:29]
+                body_actuated_joint_values=self._override_robot_q
             )
         else:
             robot_q = None
@@ -1082,7 +1121,7 @@ class ThreePointPose:
         self._override_robot_q = None
 
         # Log summary
-        source = "override q" if g1_lwrist_pos.any() else "default/zero"
+        source = "override q" if robot_q is not None else "default/zero"
         print(
             f"[{self.log_prefix}] Calibration captured (FK ref: {source}):\n"
             f"  L-Wrist pos offset: [{self._calibration_lwrist_offset[0]:.4f}, "
@@ -1149,7 +1188,7 @@ class ThreePointPose:
         print(f"[{self.log_prefix}] Calibration reset, will re-calibrate on next frame")
 
     def reset_with_measured_q(self, body_q_measured: np.ndarray) -> None:
-        """Recalibrate wrist offsets using measured robot joints (29 DOFs).
+        """Recalibrate wrist offsets using measured robot joints.
         Preserves neck calibration to avoid jumps from SMPL noise.
         Next process_smpl_pose() will recompute wrist offsets against FK of these joints."""
         # Preserve neck calibration — only clear wrist offsets
@@ -1157,6 +1196,12 @@ class ThreePointPose:
         self._calibration_rwrist_offset = None
         self._calibration_lwrist_rot_offset = None
         self._calibration_rwrist_rot_offset = None
+        body_q_measured = np.asarray(body_q_measured, dtype=np.float64)
+        if len(body_q_measured) != self._num_body_actuated_joints:
+            raise ValueError(
+                f"Measured body_q length {len(body_q_measured)} does not match "
+                f"{self.robot} actuated body DOFs ({self._num_body_actuated_joints})."
+            )
         self._override_robot_q = body_q_measured.copy()
         self._calibration_pending = True
         print(f"[{self.log_prefix}] Wrist recalibration pending (neck preserved, measured q)")
@@ -1187,6 +1232,7 @@ class PoseStreamer:
         # Injected dependencies
         self.reader = reader
         self.three_point = three_point
+        self.num_robot_joints = self.three_point._num_body_actuated_joints
 
         self.device = (
             torch.device("cuda") if use_cuda and torch.cuda.is_available() else torch.device("cpu")
@@ -1343,7 +1389,7 @@ class PoseStreamer:
         N = len(self.frame_buffer["frame_index"])
 
         ##### From @Jiefeng for directly setting the joint position ######
-        joint_pos = np.zeros(29)
+        joint_pos = np.zeros(self.num_robot_joints)
         body_pose = use_pose.reshape(-1, 21, 3)
 
         SMPL_L_ELBOW_IDX = 17
@@ -1351,15 +1397,20 @@ class PoseStreamer:
         SMPL_R_ELBOW_IDX = 18
         SMPL_R_WRIST_IDX = 20
 
-        # G1_L_ELBOW_IDX = 0
-        G1_L_WRIST_ROLL_IDX = 23
-        G1_L_WRIST_PITCH_IDX = 25
-        G1_L_WRIST_YAW_IDX = 27
-
-        # G1_R_ELBOW_IDX = 0
-        G1_R_WRIST_ROLL_IDX = 24  # Done
-        G1_R_WRIST_PITCH_IDX = 26
-        G1_R_WRIST_YAW_IDX = 28
+        if self.three_point.robot == "vr_h3_1":
+            left_wrist_roll_idx = 19
+            left_wrist_pitch_idx = 20
+            left_wrist_yaw_idx = 18
+            right_wrist_roll_idx = 26
+            right_wrist_pitch_idx = 27
+            right_wrist_yaw_idx = 25
+        else:
+            left_wrist_roll_idx = 23
+            left_wrist_pitch_idx = 25
+            left_wrist_yaw_idx = 27
+            right_wrist_roll_idx = 24
+            right_wrist_pitch_idx = 26
+            right_wrist_yaw_idx = 28
         smpl_l_elbow_aa = body_pose[:, SMPL_L_ELBOW_IDX]
         smpl_l_wrist_aa = body_pose[:, SMPL_L_WRIST_IDX]
         smpl_r_elbow_aa = body_pose[:, SMPL_R_ELBOW_IDX]
@@ -1394,13 +1445,13 @@ class PoseStreamer:
         g1_r_wrist_pitch = -r_wrist_euler[:, 1]
         g1_r_wrist_yaw = r_elbow_swing_euler[:, 2] + r_wrist_euler[:, 2]
 
-        joint_pos[G1_L_WRIST_ROLL_IDX] = g1_l_wrist_roll[0]
-        joint_pos[G1_L_WRIST_PITCH_IDX] = -g1_l_wrist_pitch[0]
-        joint_pos[G1_L_WRIST_YAW_IDX] = g1_l_wrist_yaw[0]
+        joint_pos[left_wrist_roll_idx] = g1_l_wrist_roll[0]
+        joint_pos[left_wrist_pitch_idx] = -g1_l_wrist_pitch[0]
+        joint_pos[left_wrist_yaw_idx] = g1_l_wrist_yaw[0]
 
-        joint_pos[G1_R_WRIST_ROLL_IDX] = g1_r_wrist_roll[0]
-        joint_pos[G1_R_WRIST_PITCH_IDX] = g1_r_wrist_pitch[0]
-        joint_pos[G1_R_WRIST_YAW_IDX] = g1_r_wrist_yaw[0]
+        joint_pos[right_wrist_roll_idx] = g1_r_wrist_roll[0]
+        joint_pos[right_wrist_pitch_idx] = g1_r_wrist_pitch[0]
+        joint_pos[right_wrist_yaw_idx] = g1_r_wrist_yaw[0]
 
         # Process SMPL pose to get calibrated 3-point VR pose and update visualization
         # Pass SMPL local joints for optional body visualization in the VR3Pt viewer
@@ -1440,7 +1491,7 @@ class PoseStreamer:
                 "smpl_joints": np.stack((self.frame_buffer["smpl_joints"]), axis=0),
                 "body_quat_w": np.stack((self.frame_buffer["body_quat_w"]), axis=0),
                 "joint_pos": np.stack((self.frame_buffer["joint_pos"]), axis=0),
-                "joint_vel": np.zeros((N, 29)),
+                "joint_vel": np.zeros((N, self.num_robot_joints)),
                 "vr_position": vr_3pt_pose[:, :3].flatten(),
                 "vr_orientation": vr_3pt_pose[:, 3:].flatten(),
                 "frame_index": np.array((self.frame_buffer["frame_index"]), dtype=np.int64),
@@ -1504,6 +1555,7 @@ def run_pico(
     with_g1_robot: bool = True,
     enable_waist_tracking: bool = False,
     enable_smpl_vis: bool = False,
+    robot: str = "g1",
 ):
     """Run Pico body tracking with real-time visualization and ZMQ streaming."""
     if xrt is None:
@@ -1542,6 +1594,7 @@ def run_pico(
             with_g1_robot=with_g1_robot,
             enable_waist_tracking=enable_waist_tracking,
             enable_smpl_vis=enable_smpl_vis,
+            robot=robot,
         )
     finally:
         socket.close()
@@ -1552,8 +1605,17 @@ def run_pico(
 class FeedbackReader:
     """Reads feedback from robot via ZMQ and processes measured upper body position to use as frozen targets."""
 
-    def __init__(self, zmq_feedback_host: str = "localhost", zmq_feedback_port: int = 5557):
-        self.poller = ZMQPoller(host=zmq_feedback_host, port=zmq_feedback_port, topic="g1_debug")
+    def __init__(
+        self,
+        zmq_feedback_host: str = "localhost",
+        zmq_feedback_port: int = 5557,
+        topic: str = "g1_debug",
+        robot: str = "g1",
+        robot_model=None,
+    ):
+        self.robot = robot
+        self.robot_model = robot_model or instantiate_robot_model_for_teleop(robot)
+        self.poller = ZMQPoller(host=zmq_feedback_host, port=zmq_feedback_port, topic=topic)
 
         self.upper_body_joint_indices = self._get_upper_body_joint_indices()
 
@@ -1565,9 +1627,10 @@ class FeedbackReader:
         self.full_body_q_measured: np.ndarray | None = None
 
     def _get_upper_body_joint_indices(self) -> list[int]:
-        # TODO: get from robot model, not hardcoded
-        # robot_model = instantiate_g1_robot_model()
-        # return robot_model.get_joint_group_indices("upper_body")
+        if self.robot == "vr_h3_1":
+            return self.robot_model.get_joint_group_indices({"waist", "arms"})
+
+        # Keep the existing G1 order expected by the planner stream.
         return [12, 13, 14, 15, 22, 16, 23, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
 
     def poll_feedback(self):
@@ -1625,12 +1688,18 @@ class PlannerStreamer:
         poll_hz: int = 20,
         zmq_feedback_host: str = "localhost",
         zmq_feedback_port: int = 5557,
+        robot: str = "g1",
+        feedback_topic: str = "g1_debug",
     ):
         self.socket = socket
         self.reader = reader
         self.three_point = three_point
         self.feedback_reader = FeedbackReader(
-            zmq_feedback_host=zmq_feedback_host, zmq_feedback_port=zmq_feedback_port
+            zmq_feedback_host=zmq_feedback_host,
+            zmq_feedback_port=zmq_feedback_port,
+            topic=feedback_topic,
+            robot=robot,
+            robot_model=three_point._robot_model,
         )
 
         self.dt = 1.0 / max(1, poll_hz)
@@ -1658,7 +1727,7 @@ class PlannerStreamer:
         """
         Recalibrate VR 3-point pose tracking using the robot's current measured joints.
 
-        Polls the g1_debug feedback to get the robot's actual joint state, then
+        Polls the robot feedback topic to get the robot's actual joint state, then
         schedules recalibration so VR tracking aligns with the robot's current pose.
         This prevents sudden jumps when entering VR 3PT mode from PLANNER mode.
         """
@@ -1672,7 +1741,9 @@ class PlannerStreamer:
                 "[PlannerLoop] WARNING: No feedback data for VR 3PT recalibration, "
                 "using zero body_q as fallback"
             )
-            self.three_point.reset_with_measured_q(np.zeros(29, dtype=np.float64))
+            self.three_point.reset_with_measured_q(
+                np.zeros(self.three_point._num_body_actuated_joints, dtype=np.float64)
+            )
 
     def run_once(self, stream_mode: StreamMode):
         """Execute one iteration of the planner control loop."""
@@ -1814,6 +1885,10 @@ def run_pico_manager(
     with_g1_robot: bool = True,
     enable_waist_tracking: bool = False,
     enable_smpl_vis: bool = False,
+    robot: str = "g1",
+    feedback_topic: str = "g1_debug",
+    auto_start_mode: str = "pose",
+    enable_vr3pt_planner: bool = False,
 ):
     """
     Manager: creates shared PUB socket and runs pose/planner streamers based on current mode.
@@ -1856,6 +1931,7 @@ def run_pico_manager(
         enable_waist_tracking=enable_waist_tracking,
         enable_smpl_vis=enable_smpl_vis,
         log_prefix="PoseLoop",
+        robot=robot,
     )
 
     pose_streamer = PoseStreamer(
@@ -1876,6 +1952,8 @@ def run_pico_manager(
         poll_hz=20,
         zmq_feedback_host=zmq_feedback_host,
         zmq_feedback_port=zmq_feedback_port,
+        robot=robot,
+        feedback_topic=feedback_topic,
     )
 
     # State machine diagram:
@@ -1893,7 +1971,23 @@ def run_pico_manager(
     #   Emergency stop from any mode: A+B+X+Y (start_combo) --> OFF
     #   POSE_PAUSE: left_menu_button held --> POSE_PAUSE, released --> POSE
     #
+    auto_start_map = {
+        "off": StreamMode.OFF,
+        "planner": StreamMode.PLANNER,
+        "pose": StreamMode.POSE,
+        "vr3pt": StreamMode.PLANNER_VR_3PT,
+    }
+    if auto_start_mode not in auto_start_map:
+        raise ValueError(f"Unsupported auto_start_mode: {auto_start_mode}")
+    if auto_start_mode == "vr3pt" and not enable_vr3pt_planner:
+        print("[Manager] --auto_start_mode vr3pt requested but VR3PT planner is disabled; using POSE")
+        auto_start_mode = "pose"
+    auto_start_target = auto_start_map[auto_start_mode]
+    auto_start_pending = auto_start_target != StreamMode.OFF
+
     print("Manager controls: A+X=toggle mode, A+B+X+Y=start/stop policy")
+    if auto_start_pending:
+        print(f"[Manager] Auto-start enabled: {auto_start_target.name}")
     current_mode = StreamMode.OFF
     # Track which mode VR_3PT was entered from, so left_axis_click returns to it.
     # Will be either PLANNER or PLANNER_FROZEN_UPPER_BODY.
@@ -1924,7 +2018,10 @@ def run_pico_manager(
 
             new_mode = current_mode
             if current_mode == StreamMode.OFF:
-                if start_combo and not prev_start_combo:
+                if auto_start_pending:
+                    new_mode = auto_start_target
+                    auto_start_pending = False
+                elif start_combo and not prev_start_combo:
                     new_mode = StreamMode.PLANNER
                     # Calibrate VR 3pt tracking NOW: operator should be in zero-ref pose.
                     # Uses the current Pico SMPL frame + FK of all-zero body joints.
@@ -1940,7 +2037,7 @@ def run_pico_manager(
                     new_mode = StreamMode.OFF
                 elif ax_pressed and not prev_ax_pressed:
                     new_mode = StreamMode.POSE
-                elif left_axis_click and not prev_left_axis_click:
+                elif enable_vr3pt_planner and left_axis_click and not prev_left_axis_click:
                     new_mode = StreamMode.PLANNER_VR_3PT
 
             elif current_mode == StreamMode.POSE:
@@ -1959,7 +2056,7 @@ def run_pico_manager(
                     new_mode = StreamMode.OFF
                 elif by_pressed and not prev_by_pressed:
                     new_mode = StreamMode.POSE
-                elif left_axis_click and not prev_left_axis_click:
+                elif enable_vr3pt_planner and left_axis_click and not prev_left_axis_click:
                     new_mode = StreamMode.PLANNER_VR_3PT
 
             elif current_mode == StreamMode.POSE_PAUSE:
@@ -2116,6 +2213,31 @@ if __name__ == "__main__":
         help="ZMQ feedback port (default: 5557)",
     )
     parser.add_argument(
+        "--zmq_feedback_topic",
+        type=str,
+        default="g1_debug",
+        help="ZMQ feedback topic (default: g1_debug)",
+    )
+    parser.add_argument(
+        "--robot",
+        type=str,
+        default="g1",
+        choices=SUPPORTED_ROBOTS,
+        help="Robot model for VR 3pt calibration/visualization (default: g1)",
+    )
+    parser.add_argument(
+        "--auto_start_mode",
+        type=str,
+        default="pose",
+        choices=("off", "planner", "pose", "vr3pt"),
+        help="Auto-start mode for --manager after body tracking is ready (default: pose)",
+    )
+    parser.add_argument(
+        "--enable_vr3pt_planner",
+        action="store_true",
+        help="Allow left-axis click and auto-start to enter planner VR 3-point mode",
+    )
+    parser.add_argument(
         "--vr3pt_test",
         action="store_true",
         help="Run VR 3-point pose visualizer test (reference frames only)",
@@ -2144,12 +2266,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_g1",
         action="store_true",
-        help="Disable G1 robot visualization in VR 3pt pose view (G1 is shown by default)",
+        help="Disable robot visualization in VR 3pt pose view (robot is shown by default)",
     )
     parser.add_argument(
         "--waist_tracking",
         action="store_true",
-        help="Enable G1 robot waist to follow VR head orientation (disabled by default for performance)",
+        help="Enable robot waist to follow VR head orientation (disabled by default for performance)",
     )
     parser.add_argument(
         "--vis_smpl",
@@ -2196,6 +2318,10 @@ if __name__ == "__main__":
             with_g1_robot=with_g1_robot,
             enable_waist_tracking=args.waist_tracking,
             enable_smpl_vis=args.vis_smpl,
+            robot=args.robot,
+            feedback_topic=args.zmq_feedback_topic,
+            auto_start_mode=args.auto_start_mode,
+            enable_vr3pt_planner=args.enable_vr3pt_planner,
         )
     else:
         # Run legacy single-thread pose streaming
@@ -2211,4 +2337,5 @@ if __name__ == "__main__":
             with_g1_robot=with_g1_robot,
             enable_waist_tracking=args.waist_tracking,
             enable_smpl_vis=args.vis_smpl,
+            robot=args.robot,
         )

@@ -1,0 +1,13 @@
+Metadata for: inj_right_leg_idle_loop_max_001__A073_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 790
+
+Data arrays summary:
+  joint_pos: (790, 28)
+  joint_vel: (790, 28)
+  body_pos_w: (790, 1, 3)
+  body_quat_w: (790, 1, 4)

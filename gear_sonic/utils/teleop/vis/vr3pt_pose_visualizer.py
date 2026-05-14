@@ -89,6 +89,44 @@ G1_FRAME_MAPPING = {
 }
 
 
+def _frame_exists(robot_model, frame_name: str) -> bool:
+    model = robot_model.pinocchio_wrapper.model
+    frame_id = model.getFrameId(frame_name)
+    return 0 <= frame_id < len(model.frames)
+
+
+def _get_robot_key_frame_config(robot_model) -> Tuple[Dict[str, str], Dict[str, np.ndarray]]:
+    """Return key frame mapping and local offsets for the provided robot model."""
+    supplemental_info = getattr(robot_model, "supplemental_info", None)
+    robot_name = getattr(supplemental_info, "name", "")
+
+    if robot_name == "VR_H3_1":
+        mapping = {
+            "left_wrist": supplemental_info.hand_frame_names["left"],
+            "right_wrist": supplemental_info.hand_frame_names["right"],
+            "torso": "waist_roll_link",
+        }
+        offsets = {
+            "left_wrist": np.zeros(3),
+            "right_wrist": np.zeros(3),
+            "torso": np.zeros(3),
+        }
+        return mapping, offsets
+
+    mapping = G1_FRAME_MAPPING.copy()
+    if supplemental_info is not None:
+        hand_frame_names = getattr(supplemental_info, "hand_frame_names", {})
+        mapping["left_wrist"] = hand_frame_names.get("left", mapping["left_wrist"])
+        mapping["right_wrist"] = hand_frame_names.get("right", mapping["right_wrist"])
+
+        for torso_candidate in ("torso_link", "waist_roll_link", supplemental_info.root_frame_name):
+            if torso_candidate and _frame_exists(robot_model, torso_candidate):
+                mapping["torso"] = torso_candidate
+                break
+
+    return mapping, G1_KEY_FRAME_OFFSETS.copy()
+
+
 def get_g1_key_frame_poses(
     robot_model,
     q: np.ndarray = None,
@@ -120,11 +158,13 @@ def get_g1_key_frame_poses(
     if root_position is None:
         root_position = np.array([0.0, 0.0, 0.0])
 
+    frame_mapping, key_frame_offsets = _get_robot_key_frame_config(robot_model)
+
     # Update forward kinematics
     robot_model.cache_forward_kinematics(q, auto_clip=False)
 
     result = {}
-    for key, frame_name in G1_FRAME_MAPPING.items():
+    for key, frame_name in frame_mapping.items():
         # Get frame placement from Pinocchio — if the frame doesn't exist,
         # this is a fatal configuration error (wrong URDF or frame name).
         try:
@@ -138,8 +178,8 @@ def get_g1_key_frame_poses(
         rotation_matrix = placement.rotation
 
         # Apply offset in local frame, then transform to world frame
-        if apply_offset and key in G1_KEY_FRAME_OFFSETS:
-            local_offset = G1_KEY_FRAME_OFFSETS[key]
+        if apply_offset and key in key_frame_offsets:
+            local_offset = key_frame_offsets[key]
             world_offset = rotation_matrix @ local_offset
             position = placement.translation + world_offset + root_position
         else:
@@ -210,6 +250,7 @@ class G1RobotVisualizer:
         from gear_sonic.data.robot_model.instantiation.g1 import instantiate_g1_robot_model
 
         self.robot_model = robot_model if robot_model is not None else instantiate_g1_robot_model()
+        self.robot_name = getattr(getattr(self.robot_model, "supplemental_info", None), "name", "G1")
 
         # Get paths for mesh files
         gear_sonic_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -649,7 +690,8 @@ class G1RobotVisualizer:
         # Axis colors (RGB for XYZ)
         axis_colors = ["red", "green", "blue"]
 
-        for key in ["left_wrist", "right_wrist", "torso"]:
+        frame_mapping, _ = _get_robot_key_frame_config(self.robot_model)
+        for key in frame_mapping:
             actors = {"arrows": [], "ball": None}
 
             # Create arrows for each axis

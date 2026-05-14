@@ -1,0 +1,13 @@
+Metadata for: inj_torso_jump_ff_180_R_max_001__A079_M
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 1013
+
+Data arrays summary:
+  joint_pos: (1013, 28)
+  joint_vel: (1013, 28)
+  body_pos_w: (1013, 1, 3)
+  body_quat_w: (1013, 1, 4)

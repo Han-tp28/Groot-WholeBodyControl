@@ -730,7 +730,7 @@ class G1Deploy {
       return true;
     }
 
-    /// Gather joint positions from N future frames.  If joint_indexes is empty, gathers all 29.
+    /// Gather joint positions from N future frames.  If joint_indexes is empty, gathers all motors.
     /// When upper-body control is active (has_upper_body_data_), replaces upper-body joints with
     /// the externally-provided targets.
     bool GatherMotionJointPositionsMultiFrame(std::vector<double>& target_buffer, size_t offset, int num_frames = 5, int step_size = 5, std::vector<int> joint_indexes = {}) {
@@ -769,17 +769,18 @@ class G1Deploy {
 
         // If body part indexes are empty, gather all joints
         if (joint_indexes.empty()) {
-          size_t frame_offset = offset + frame_idx * 29;  // 29 joints per frame
+          size_t frame_offset = offset + frame_idx * G1_NUM_MOTOR;
+          const size_t joints_to_copy = std::min<size_t>(G1_NUM_MOTOR, num_joints);
           std::copy(
             motion_joint_pos,
-            motion_joint_pos + num_joints,
+            motion_joint_pos + joints_to_copy,
             target_buffer.begin() + frame_offset
           );
           
           // If upper body control is enabled, use upper body joint positions in buffer to replace the motion_joint_pos
           if (has_upper_body_data_) {
-            std::array<double, 29> current_motion_joint_pos;
-            for (size_t i = 0; i < 29; i++) {
+            std::array<double, G1_NUM_MOTOR> current_motion_joint_pos;
+            for (size_t i = 0; i < G1_NUM_MOTOR; i++) {
               current_motion_joint_pos[i] = motion_joint_pos[i];
             }
             for (size_t i = 0; i < 17; i++) {
@@ -846,17 +847,18 @@ class G1Deploy {
 
         // If body part indexes are empty, gather all joints
         if (joint_indexes.empty()) {
-          size_t frame_offset = offset + frame_idx * 29;  // 29 joints per frame
+          size_t frame_offset = offset + frame_idx * G1_NUM_MOTOR;
+          const size_t joints_to_copy = std::min<size_t>(G1_NUM_MOTOR, num_joints);
           if (operator_state.play) {
             std::copy(
               motion_joint_vel,
-              motion_joint_vel + num_joints,
+              motion_joint_vel + joints_to_copy,
               target_buffer.begin() + frame_offset
             );
             // If upper body control is enabled, use upper body joint velocities in buffer to replace the motion_joint_vel
             if (has_upper_body_data_) {
-              std::array<double, 29> current_motion_joint_vel;
-              for (size_t i = 0; i < 29; i++) {
+              std::array<double, G1_NUM_MOTOR> current_motion_joint_vel;
+              for (size_t i = 0; i < G1_NUM_MOTOR; i++) {
                 current_motion_joint_vel[i] = motion_joint_vel[i];
               }
               for (size_t i = 0; i < 17; i++) {
@@ -871,7 +873,7 @@ class G1Deploy {
           } else {
             std::fill_n(
               target_buffer.begin() + frame_offset,
-              num_joints,
+              joints_to_copy,
               0.0
             );
           }
@@ -1707,8 +1709,8 @@ class G1Deploy {
       return {{"token_state", token_dim, [this](std::vector<double>& buf, size_t offset) { return GatherTokenState(buf, offset); }},
               {"encoder_mode", 3, [this](std::vector<double>& buf, size_t offset) { return GatherEncoderMode(buf, offset, 2); }},
               {"encoder_mode_4", 4, [this](std::vector<double>& buf, size_t offset) { return GatherEncoderMode(buf, offset, 3); }},
-              {"motion_joint_positions", 29, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 1, 1); }},
-              {"motion_joint_velocities", 29, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 1, 1); }},
+              {"motion_joint_positions", G1_NUM_MOTOR, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 1, 1); }},
+              {"motion_joint_velocities", G1_NUM_MOTOR, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 1, 1); }},
               {"motion_anchor_orientation", 6, [this](std::vector<double>& buf, size_t offset) { return GatherMotionAnchorOrientationMutiFrame(buf, offset, 1, 1); }},
               {"motion_root_z_position", 1, [this](std::vector<double>& buf, size_t offset) { return GatherMotionRootZPositionMultiFrame(buf, offset, 1, 1); }},
               {"motion_root_z_position_10frame_step5", 10, [this](std::vector<double>& buf, size_t offset) { return GatherMotionRootZPositionMultiFrame(buf, offset, 10, 5); }},
@@ -1726,12 +1728,12 @@ class G1Deploy {
               {"motion_anchor_orientation_refheading", 6, [this](std::vector<double>& buf, size_t offset) { return GatherMotionAnchorOrientationMutiFrame(buf, offset, 1, 1, 2); }},
               {"motion_anchor_orientation_refheading_10frame_step5", 60, [this](std::vector<double>& buf, size_t offset) { return GatherMotionAnchorOrientationMutiFrame(buf, offset, 10, 5, 2); }},
               {"motion_anchor_orientation_refheading_10frame_step1", 60, [this](std::vector<double>& buf, size_t offset) { return GatherMotionAnchorOrientationMutiFrame(buf, offset, 10, 1, 2); }},
-              {"motion_joint_positions_10frame_step5", 290, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 5); }},
-              {"motion_joint_velocities_10frame_step5", 290, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 5); }},
-              {"motion_joint_positions_10frame_step1", 290, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 1); }},
-              {"motion_joint_velocities_10frame_step1", 290, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 1); }},
-              {"motion_joint_positions_3frame_step1", 87, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 3, 1); }},
-              {"motion_joint_velocities_3frame_step1", 87, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 3, 1); }},
+              {"motion_joint_positions_10frame_step5", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 5); }},
+              {"motion_joint_velocities_10frame_step5", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 5); }},
+              {"motion_joint_positions_10frame_step1", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 1); }},
+              {"motion_joint_velocities_10frame_step1", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 1); }},
+              {"motion_joint_positions_3frame_step1", G1_NUM_MOTOR * 3, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 3, 1); }},
+              {"motion_joint_velocities_3frame_step1", G1_NUM_MOTOR * 3, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 3, 1); }},
               {"motion_joint_positions_lowerbody_10frame_step5", 120, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 5, lower_body_joint_mujoco_order_in_isaaclab_index); }},
               {"motion_joint_velocities_lowerbody_10frame_step5", 120, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 5, lower_body_joint_mujoco_order_in_isaaclab_index); }},
               {"motion_joint_positions_lowerbody_10frame_step1", 120, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 1, lower_body_joint_mujoco_order_in_isaaclab_index); }},
@@ -1739,8 +1741,8 @@ class G1Deploy {
               {"motion_joint_positions_wrists_10frame_step1", 60, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 10, 1, wrist_joint_isaaclab_order_in_isaaclab_index); }},
               {"motion_joint_positions_wrists_2frame_step1", 12, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 2, 1, wrist_joint_isaaclab_order_in_isaaclab_index); }},
               {"motion_joint_velocities_wrists_10frame_step1", 60, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 10, 1, wrist_joint_isaaclab_order_in_isaaclab_index); }},
-              {"motion_joint_positions_5frame_step5", 145, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 5, 5); }},
-              {"motion_joint_velocities_5frame_step5", 145, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 5, 5); }},
+              {"motion_joint_positions_5frame_step5", G1_NUM_MOTOR * 5, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointPositionsMultiFrame(buf, offset, 5, 5); }},
+              {"motion_joint_velocities_5frame_step5", G1_NUM_MOTOR * 5, [this](std::vector<double>& buf, size_t offset) { return GatherMotionJointVelocitiesMultiFrame(buf, offset, 5, 5); }},
               // SMPL data gathering (dimensions assume 24 joints, 21 poses - adjust based on actual data)
               {"smpl_joints", 72, [this](std::vector<double>& buf, size_t offset) { return GatherMotionSmplJointsMultiFrame(buf, offset, 1, 1); }},  // 24*3
               {"smpl_joints_5frame_step5", 360, [this](std::vector<double>& buf, size_t offset) { return GatherMotionSmplJointsMultiFrame(buf, offset, 5, 5); }},  // 24*3*5
@@ -1775,18 +1777,18 @@ class G1Deploy {
               {"vr_5point_local_orn_target", 20, [this](std::vector<double>& buf, size_t offset) { return GatherVR5PointOrientation(buf, offset); }},
               // History robot state gathering
               {"base_angular_velocity", 3, [this](std::vector<double>& buf, size_t offset) { return GatherHisBaseAngularVelocity(buf, offset, 1, 1); }},
-              {"body_joint_positions", 29, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 1, 1); }},
-              {"body_joint_velocities", 29, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 1, 1); }},
-              {"last_actions", 29, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 1, 1); }},
+              {"body_joint_positions", G1_NUM_MOTOR, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 1, 1); }},
+              {"body_joint_velocities", G1_NUM_MOTOR, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 1, 1); }},
+              {"last_actions", G1_NUM_MOTOR, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 1, 1); }},
               {"gravity_dir", 3, [this](std::vector<double>& buf, size_t offset) { return GatherHisGravityDir(buf, offset, 1, 1); }},
-              {"his_body_joint_positions_4frame_step1", 116, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 4, 1); }},
-              {"his_body_joint_velocities_4frame_step1", 116, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 4, 1); }},
-              {"his_last_actions_4frame_step1", 116, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 4, 1); }},
+              {"his_body_joint_positions_4frame_step1", G1_NUM_MOTOR * 4, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 4, 1); }},
+              {"his_body_joint_velocities_4frame_step1", G1_NUM_MOTOR * 4, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 4, 1); }},
+              {"his_last_actions_4frame_step1", G1_NUM_MOTOR * 4, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 4, 1); }},
               {"his_base_angular_velocity_4frame_step1", 12, [this](std::vector<double>& buf, size_t offset) { return GatherHisBaseAngularVelocity(buf, offset, 4, 1); }},
               {"his_gravity_dir_4frame_step1", 12, [this](std::vector<double>& buf, size_t offset) { return GatherHisGravityDir(buf, offset, 4, 1); }},
-              {"his_body_joint_positions_10frame_step1", 290, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 10, 1); }},
-              {"his_body_joint_velocities_10frame_step1", 290, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 10, 1); }},
-              {"his_last_actions_10frame_step1", 290, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 10, 1); }},
+              {"his_body_joint_positions_10frame_step1", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointPositions(buf, offset, 10, 1); }},
+              {"his_body_joint_velocities_10frame_step1", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherHisBodyJointVelocities(buf, offset, 10, 1); }},
+              {"his_last_actions_10frame_step1", G1_NUM_MOTOR * 10, [this](std::vector<double>& buf, size_t offset) { return GatherHisLastActions(buf, offset, 10, 1); }},
               {"his_base_angular_velocity_10frame_step1", 30, [this](std::vector<double>& buf, size_t offset) { return GatherHisBaseAngularVelocity(buf, offset, 10, 1); }},
               {"his_gravity_dir_10frame_step1", 30, [this](std::vector<double>& buf, size_t offset) { return GatherHisGravityDir(buf, offset, 10, 1); }}};
     }
@@ -3449,7 +3451,6 @@ class G1Deploy {
         } else {
           if (current_frame_ >= current_motion_->timesteps - saved_frame_for_observation_window_) {
             current_frame_ = current_frame_ - 1;
-            std::cout << "Motion " << current_motion_->name << " completed and waiting following motion" << std::endl;                    
           }
         }
       }

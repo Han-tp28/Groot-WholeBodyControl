@@ -1,0 +1,13 @@
+Metadata for: inj_torso_walk_180_R_max_001__A079
+==============================
+
+Body part indexes:
+[0]
+
+Total timesteps: 2593
+
+Data arrays summary:
+  joint_pos: (2593, 28)
+  joint_vel: (2593, 28)
+  body_pos_w: (2593, 1, 3)
+  body_quat_w: (2593, 1, 4)
