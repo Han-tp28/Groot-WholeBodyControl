@@ -2184,10 +2184,8 @@ class G1Deploy {
 
       // Initialize ChannelFactory
       try {
-        if (is_simulation_mode) {
-          // In MuJoCo simulation, forcing loopback by name can destabilize CycloneDDS on some hosts.
-          // Let DDS choose the default interface instead.
-          std::cout << "[DEBUG] [Init] Initializing DDS ChannelFactory with default interface (sim mode)" << std::endl;
+        if (is_simulation_mode && networkInterface.empty()) {
+          std::cout << "[DEBUG] [Init] Initializing DDS ChannelFactory with default interface (sim mode, no interface requested)" << std::endl;
           ChannelFactory::Instance()->Init(0);
         } else {
           std::cout << "[DEBUG] [Init] Initializing DDS ChannelFactory on interface '" << networkInterface << "'" << std::endl;

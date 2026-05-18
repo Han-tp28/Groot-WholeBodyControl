@@ -24,8 +24,6 @@ class SimWrapper:
         self.robot_model = robot_model
         self.config = config
 
-        init_channel(config=self.config)
-
         # Create simulator using factory
         self.sim = SimulatorFactory.create_simulator(
             config=self.config,

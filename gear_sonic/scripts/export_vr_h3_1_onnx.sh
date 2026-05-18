@@ -11,15 +11,26 @@ if [[ $# -gt 0 ]]; then
     CHECKPOINT="${CALLER_PWD}/${CHECKPOINT}"
   fi
 else
-  CHECKPOINT="data/model_step_100000.pt"
+  CHECKPOINT="logs_rl/TRL_VR_H3_1_Track/manager/universal_token/all_modes/sonic_vr_h3_1_test-20260508_175136/model_step_100000.pt"
 fi
 
-ROBOT_MOTION_FILE="${ROBOT_MOTION_FILE:-data/my_robot_motions/robot}"
-SMPL_MOTION_FILE="${SMPL_MOTION_FILE:-data/smpl_filtered}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+ROBOT_MOTION_FILE="${ROBOT_MOTION_FILE:-data/motion_lib_bones_seed/vr_h3_1_filtered}"
+SMPL_MOTION_FILE="${SMPL_MOTION_FILE:-dummy}"
 
 cd "${REPO_ROOT}"
 
-python "${REPO_ROOT}/gear_sonic/eval_agent_trl.py" \
+if [[ ! -f "${CHECKPOINT}" ]]; then
+  echo "Missing checkpoint: ${CHECKPOINT}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${ROBOT_MOTION_FILE}" ]]; then
+  echo "Missing H3 motion directory: ${ROBOT_MOTION_FILE}" >&2
+  exit 1
+fi
+
+"${PYTHON_BIN}" "${REPO_ROOT}/gear_sonic/eval_agent_trl.py" \
   +exp=manager/universal_token/all_modes/sonic_vr_h3_1 \
   checkpoint="${CHECKPOINT}" \
   num_envs=1 \

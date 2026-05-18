@@ -611,8 +611,13 @@ class BaseSimulator:
             )
 
         try:
-            if self.config.get("INTERFACE", None):
-                ChannelFactoryInitialize(self.config["DOMAIN_ID"], self.config["INTERFACE"])
+            interface = self.config.get("INTERFACE", None)
+            if interface:
+                print(
+                    "Initializing DDS ChannelFactory with "
+                    f"DOMAIN_ID={self.config['DOMAIN_ID']} and INTERFACE={interface!r}"
+                )
+                ChannelFactoryInitialize(self.config["DOMAIN_ID"], interface)
             else:
                 ChannelFactoryInitialize(self.config["DOMAIN_ID"])
         except Exception as e:

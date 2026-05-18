@@ -5,6 +5,9 @@
 
 echo "🔧 Setting up G1 Deploy environment..."
 
+SETUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY_ROOT="$(cd "$SETUP_SCRIPT_DIR/.." && pwd)"
+
 # Run jetson_clocks on Jetson systems (bare-metal only)
 if command -v jetson_clocks &> /dev/null; then
     if [ -f "/.dockerenv" ]; then
@@ -301,6 +304,15 @@ if [ -d "/opt/onnxruntime/lib" ]; then
     export LD_LIBRARY_PATH="/opt/onnxruntime/lib:$LD_LIBRARY_PATH"
 fi
 
+# Keep Unitree's bundled CycloneDDS ahead of ROS2's libddsc.  The Unitree SDK
+# channel layer is built/tested against this copy, while ROS2 may add another
+# libddsc earlier in LD_LIBRARY_PATH.
+UNITREE_SDK_LIB_DIR="$DEPLOY_ROOT/thirdparty/unitree_sdk2/thirdparty/lib/$ARCH"
+if [ -d "$UNITREE_SDK_LIB_DIR" ]; then
+    export LD_LIBRARY_PATH="$UNITREE_SDK_LIB_DIR:$LD_LIBRARY_PATH"
+    echo "✅ Unitree SDK libraries prioritized: $UNITREE_SDK_LIB_DIR"
+fi
+
 # Set up Git LFS (if not already done)
 if command -v git-lfs &> /dev/null; then
     git lfs install &> /dev/null
@@ -344,4 +356,3 @@ echo ""
 if [ -n "$BASH_VERSION" ]; then
     export PS1="(g1_deploy) $PS1"
 fi
-

@@ -15,8 +15,13 @@ def init_channel(config: Dict[str, Any]) -> None:
     Args:
         config: Configuration dictionary containing DOMAIN_ID and optionally INTERFACE
     """
-    if config.get("INTERFACE", None):
-        ChannelFactoryInitialize(config["DOMAIN_ID"], config["INTERFACE"])
+    interface = config.get("INTERFACE", None)
+    if interface:
+        print(
+            "Calling ChannelFactoryInitialize with "
+            f"DOMAIN_ID={config.get('DOMAIN_ID')} and INTERFACE={interface!r}"
+        )
+        ChannelFactoryInitialize(config["DOMAIN_ID"], interface)
     else:
         ChannelFactoryInitialize(config["DOMAIN_ID"])
 

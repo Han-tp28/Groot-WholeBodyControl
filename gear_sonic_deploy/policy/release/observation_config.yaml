@@ -33,9 +33,9 @@ encoder:
     - name: "motion_joint_velocities_10frame_step5"
       enabled: true
     - name: "motion_root_z_position_10frame_step5"
-      enabled: true
+      enabled: false
     - name: "motion_root_z_position"
-      enabled: true
+      enabled: false
     - name: "motion_anchor_orientation"
       enabled: true
     - name: "motion_anchor_orientation_10frame_step5"

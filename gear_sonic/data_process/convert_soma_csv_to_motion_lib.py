@@ -417,6 +417,23 @@ def main():
             else False
         )
 
+        # Fallback: if no CSVs or sessions found, check for a "csv" subdirectory (common in Bones-SEED)
+        if not has_csvs and not has_session_subdirs and "csv" in subdirs:
+            print(f"No motions found in {args.input}, looking in {args.input}/csv...")
+            args.input = os.path.join(args.input, "csv")
+            has_csvs = any(f.endswith(".csv") for f in os.listdir(args.input))
+            subdirs = sorted(
+                [d for d in os.listdir(args.input) if os.path.isdir(os.path.join(args.input, d))]
+            )
+            has_session_subdirs = (
+                any(
+                    any(f.endswith(".csv") for f in os.listdir(os.path.join(args.input, d)))
+                    for d in subdirs[:3]
+                )
+                if subdirs
+                else False
+            )
+
         session_dirs = []
         if has_session_subdirs:
             for d in subdirs:
