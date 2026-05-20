@@ -1,6 +1,6 @@
 # @package _global_
-# SONIC VR_H3_1 config — 3 encoders for VR H3-1 robot (30 controllable DOF).
-# Based on sonic_h2 but targeting the vr_h3_1 robot.
+# SONIC VR_H3_1 config - 3 encoders (G1/motion tracking, teleop, SMPL).
+# Based on sonic_release but targeting the VR_H3_1 robot (28 DOF).
 
 defaults:
   - /algo: ppo_im_phc

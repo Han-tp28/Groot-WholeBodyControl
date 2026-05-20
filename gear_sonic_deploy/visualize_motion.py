@@ -93,15 +93,64 @@ def load_anim_data(csv_path: str):
         csv_data = []
         current_rowlist = []
         with open(csv_path, mode="r", newline="") as file:
-
             csv_reader = csv.reader(file)
-            for row in csv_reader:
+            first_row = next(csv_reader, None)
+            if first_row is None:
+                return ret
+
+            header = [x.strip() for x in first_row]
+            if header and header[0] == "Frame":
+                rows = []
+                for row in csv_reader:
+                    if not any(x.strip() for x in row):
+                        continue
+                    rows.append({name: value for name, value in zip(header, row)})
+
+                root_trans = np.array(
+                    [
+                        [
+                            float(row["root_translateX"]),
+                            float(row["root_translateY"]),
+                            float(row["root_translateZ"]),
+                        ]
+                        for row in rows
+                    ],
+                    dtype=np.float64,
+                ) / 100.0
+                root_euler_deg = np.array(
+                    [
+                        [
+                            float(row["root_rotateX"]),
+                            float(row["root_rotateY"]),
+                            float(row["root_rotateZ"]),
+                        ]
+                        for row in rows
+                    ],
+                    dtype=np.float64,
+                )
+                root_quat_xyzw = R.from_euler("xyz", root_euler_deg, degrees=True).as_quat()
+                joint_cols = [name for name in header if name.endswith("_dof")]
+                dof = np.deg2rad(
+                    np.array(
+                        [[float(row[name]) for name in joint_cols] for row in rows],
+                        dtype=np.float64,
+                    )
+                )
+                ret.append({
+                    "dof": dof,
+                    "root_rot": root_quat_xyzw[:, [3, 0, 1, 2]],  # MuJoCo qpos uses [w, x, y, z]
+                    "root_trans_offset": root_trans,
+                })
+                return ret
+
+            for row in [first_row, *csv_reader]:
                 if len(row):
                     r = [x for x in row if x]
                     assert len(r) == 36
-                    current_rowlist.append(r)
+                    current_rowlist.append([float(x) for x in r])
                 else:
-                    csv_data.append(current_rowlist)
+                    if current_rowlist:
+                        csv_data.append(current_rowlist)
                     current_rowlist = []
 
             if current_rowlist:

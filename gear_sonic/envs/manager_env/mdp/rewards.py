@@ -29,6 +29,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     tracking_anchor_pos = None
+    tracking_anchor_pos_tight = None
     tracking_anchor_ori = None
     tracking_relative_body_pos = None
     tracking_relative_body_ori = None

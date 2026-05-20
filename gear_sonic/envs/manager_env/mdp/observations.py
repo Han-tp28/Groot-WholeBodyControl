@@ -872,7 +872,12 @@ def robot_body_ori_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     return mat[..., :2].reshape(mat.shape[0], -1)
 
 
-def motion_anchor_pos_b(env: ManagerBasedEnv, command_name: str, mask_out_z=False) -> torch.Tensor:
+def motion_anchor_pos_b(
+    env: ManagerBasedEnv,
+    command_name: str,
+    mask_out_z=False,
+    non_flatten=False,
+) -> torch.Tensor:
     """Get reference motion anchor position relative to robot anchor in robot-local frame.
 
     Computes the position of the reference motion's root relative to the robot's
@@ -881,11 +886,27 @@ def motion_anchor_pos_b(env: ManagerBasedEnv, command_name: str, mask_out_z=Fals
     Args:
         command_name: Name of the tracking command term.
         mask_out_z: If True, return only xy components (discard z).
+        non_flatten: If True, return future reference root offsets with shape
+            ``(num_envs, num_future_frames, 3)`` so it can be concatenated with
+            other multi-future encoder inputs.
 
     Returns:
-        torch.Tensor: Position offset, shape (num_envs, 3) or (num_envs, 2) if mask_out_z.
+        torch.Tensor: Position offset, shape (num_envs, 3), (num_envs, 2), or
+        (num_envs, num_future_frames, 3) when non_flatten=True.
     """
     command: commands.TrackingCommand = env.command_manager.get_term(command_name)
+    if non_flatten:
+        ref_root_pos_future_w = command.anchor_pos_w_multi_future.view(
+            command.num_envs, command.num_future_frames, -1
+        )
+        robot_root_pos_w = command.robot_anchor_pos_w.unsqueeze(1)
+        robot_root_quat_w = command.robot_anchor_quat_w.unsqueeze(1)
+        robot_root_quat_w = robot_root_quat_w.expand(-1, command.num_future_frames, -1)
+        pos = quat_apply_inverse(robot_root_quat_w, ref_root_pos_future_w - robot_root_pos_w)
+        if mask_out_z:
+            pos = pos[..., :2]
+        return pos.reshape(command.num_envs, command.num_future_frames, -1)
+
     pos, _ = subtract_frame_transforms(
         command.robot_anchor_pos_w,
         command.robot_anchor_quat_w,

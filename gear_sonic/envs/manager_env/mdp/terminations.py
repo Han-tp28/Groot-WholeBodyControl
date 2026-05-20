@@ -303,9 +303,11 @@ class _CummErrorMixin(ManagerTermBase):
         self.error = torch.zeros(env.num_envs, device=device)
         self._cum_steps = torch.zeros(env.num_envs, dtype=torch.int32, device=device)
 
-    def _update_counters(self) -> torch.Tensor:
+    def _update_counters(self, threshold: float | torch.Tensor | None = None) -> torch.Tensor:
         """Accumulate consecutive steps above the threshold and return done mask."""
-        exceeded = self.error >= self.threshold
+        if threshold is None:
+            threshold = self.threshold
+        exceeded = self.error >= threshold
         self._cum_steps[exceeded] += 1
         self._cum_steps[~exceeded] = 0
         return self._cum_steps >= self.min_steps
@@ -351,6 +353,115 @@ class CummBodyPosError(_CummErrorMixin):
         robot_body_pos = self.command.robot_body_pos_w[:, self.robot_body_indices]
         body_pos_error = (ref_body_pos - robot_body_pos).norm(dim=-1)
         self.error[:] = body_pos_error.max(dim=1).values
+        return self._update_counters()
+
+
+class CummAnchorOriError(_CummErrorMixin):
+    """Terminate if anchor orientation error exceeds threshold for min_steps."""
+
+    def __call__(self, env, asset_cfg=None, min_steps=None, threshold=None, command_name=None):
+        """Compute squared anchor orientation error and check cumulative threshold."""
+        angular_err = quat_error_magnitude(
+            self.command.anchor_quat_w, self.command.robot_anchor_quat_w
+        )
+        self.error[:] = angular_err.square()
+        return self._update_counters()
+
+
+class CummAnchorPosXYError(_CummErrorMixin):
+    """Terminate if anchor XY position error exceeds threshold for min_steps."""
+
+    def __call__(self, env, min_steps=None, threshold=None, command_name=None):
+        """Compute anchor XY error and check cumulative threshold."""
+        xy_diff = self.command.anchor_pos_w[:, :2] - self.command.robot_anchor_pos_w[:, :2]
+        self.error[:] = xy_diff.norm(dim=1)
+        return self._update_counters()
+
+
+class CummAnchorHeightError(_CummErrorMixin):
+    """Terminate if anchor height error exceeds threshold for min_steps."""
+
+    def __init__(self, cfg: TerminationTermCfg, env):
+        """Initialize adaptive anchor height thresholds."""
+        super().__init__(cfg=cfg, env=env)
+        self.threshold_adaptive = cfg.params.get("threshold_adaptive", False)
+        self.down_threshold = cfg.params.get("down_threshold", 0.5)
+        self.root_height_threshold = cfg.params.get("root_height_threshold", 1.0)
+
+    def __call__(
+        self,
+        env,
+        min_steps=None,
+        threshold=None,
+        threshold_adaptive=None,
+        down_threshold=None,
+        root_height_threshold=None,
+        command_name=None,
+    ):
+        """Compute anchor height error and check cumulative threshold."""
+        self.error[:] = (self.command.anchor_pos_w[:, 2] - self.command.robot_anchor_pos_w[:, 2]).abs()
+        if self.threshold_adaptive:
+            thresh = torch.full_like(self.error, self.threshold)
+            thresh[self.command.running_ref_root_height < self.root_height_threshold] = (
+                self.down_threshold
+            )
+            return self._update_counters(thresh)
+        return self._update_counters()
+
+
+class CummBodyPosRelativeError(_CummErrorMixin):
+    """Terminate if anchor-relative body position error exceeds threshold for min_steps."""
+
+    def __init__(self, cfg: TerminationTermCfg, env):
+        """Initialize body indices for anchor-relative position error tracking."""
+        super().__init__(cfg=cfg, env=env)
+        self.body_indices = _get_body_indexes(self.command, cfg.params.get("body_names"))
+
+    def __call__(self, env, body_names=None, min_steps=None, threshold=None, command_name=None):
+        """Compute max anchor-relative body position error and check cumulative threshold."""
+        pos_diff = (
+            self.command.body_pos_relative_w[:, self.body_indices]
+            - self.command.robot_body_pos_w[:, self.body_indices]
+        )
+        body_pos_error = pos_diff.norm(dim=-1)
+        self.error[:] = body_pos_error.max(dim=1).values
+        return self._update_counters()
+
+
+class CummBodyHeightError(_CummErrorMixin):
+    """Terminate if body height error exceeds threshold for min_steps."""
+
+    def __init__(self, cfg: TerminationTermCfg, env):
+        """Initialize body indices and adaptive height thresholds."""
+        super().__init__(cfg=cfg, env=env)
+        self.body_indices = _get_body_indexes(self.command, cfg.params.get("body_names"))
+        self.threshold_adaptive = cfg.params.get("threshold_adaptive", False)
+        self.down_threshold = cfg.params.get("down_threshold", 0.5)
+        self.root_height_threshold = cfg.params.get("root_height_threshold", 0.5)
+
+    def __call__(
+        self,
+        env,
+        body_names=None,
+        min_steps=None,
+        threshold=None,
+        threshold_adaptive=None,
+        down_threshold=None,
+        root_height_threshold=None,
+        command_name=None,
+    ):
+        """Compute max body height error and check cumulative threshold."""
+        height_err = (
+            self.command.body_pos_relative_w[:, self.body_indices, 2]
+            - self.command.robot_body_pos_w[:, self.body_indices, 2]
+        ).abs()
+        self.error[:] = height_err.max(dim=1).values
+        if self.threshold_adaptive:
+            thresh = torch.full_like(self.error, self.threshold)
+            thresh[self.command.running_ref_root_height < self.root_height_threshold] = (
+                self.down_threshold
+            )
+            return self._update_counters(thresh)
         return self._update_counters()
 
 
@@ -485,5 +596,3 @@ class CummBodyOriErrorLocal(_CummErrorMixin):
         body_ori_error = axis_angle_from_quat(quat_diff).norm(dim=-1)
         self.error[:] = body_ori_error.max(dim=1).values
         return self._update_counters()
-
-
